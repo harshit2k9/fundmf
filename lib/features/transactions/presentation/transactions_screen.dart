@@ -8,6 +8,7 @@ import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/async_value_view.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../auth/presentation/session_providers.dart';
+import '../../portfolio/presentation/portfolio_providers.dart';
 import '../domain/transaction_model.dart';
 import 'exporter_providers.dart';
 import 'transaction_providers.dart';

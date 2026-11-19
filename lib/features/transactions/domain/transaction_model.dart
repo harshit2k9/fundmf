@@ -54,7 +54,7 @@ enum TransactionKind {
 
 /// A single row from a CAMS consolidated account statement.
 ///
-/// The document id equals [transactionId], which makes the Cloud Function's
+/// The document id equals [transactionId], which makes the sync service's
 /// writes idempotent: re-processing the same email can never double count.
 class FundTransaction {
   const FundTransaction({

@@ -1,5 +1,3 @@
-import 'dart:ui' show FontFeature;
-
 import 'package:material_ui/material_ui.dart';
 
 import '../theme/app_colors.dart';

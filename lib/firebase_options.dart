@@ -9,11 +9,10 @@ import 'package:flutter/foundation.dart';
 /// flutterfire configure --project=fundmf
 /// ```
 ///
-/// The placeholders below keep the project compiling; `main()` catches the
-/// resulting initialisation error and shows the setup checklist instead of
-/// crashing. Never commit real web API keys you consider sensitive — Firebase
-/// web keys are public identifiers, but the OAuth refresh token used by the
-/// Cloud Function must only ever live in Secret Manager.
+/// The values below keep the project compiling; `main()` catches any
+/// initialisation error and shows the setup checklist instead of crashing.
+/// Firebase web API keys are public identifiers, but the Gmail OAuth refresh
+/// token used by the backend must only ever live in the Render environment.
 abstract final class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) return web;

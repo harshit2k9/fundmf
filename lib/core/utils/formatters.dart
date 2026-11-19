@@ -72,7 +72,9 @@ abstract final class Formatters {
   /// `ABCDE1234F` -> `ABCDE••••F`
   static String maskPan(String pan) {
     final value = pan.trim();
-    if (value.length < 4) return value;
+    // Keep the first five and the last character; anything shorter cannot be
+    // masked without an out-of-range substring.
+    if (value.length < 6) return value;
     return '${value.substring(0, 5)}••••${value.substring(value.length - 1)}';
   }
 

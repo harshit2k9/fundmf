@@ -12,7 +12,7 @@
     "start": "node lib/index.js",
     "dev": "tsx watch src/index.ts",
     "typecheck": "tsc --noEmit",
-    "sync": "node lib/scripts/runSync.js"
+    "sync": "node lib/scripts/run-sync.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

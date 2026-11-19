@@ -126,6 +126,8 @@ export async function runCamsSync(
           continue;
         }
 
+        let parsedAnyAttachment = false;
+
         for (const part of csvParts) {
           const csvText = await downloadAttachment(gmail, messageId, part);
           if (!csvText) {
@@ -144,6 +146,8 @@ export async function runCamsSync(
             continue;
           }
 
+          parsedAnyAttachment = true;
+
           for (const row of rows) {
             const transaction = mapRow(row);
             if (!transaction) continue;
@@ -155,6 +159,13 @@ export async function runCamsSync(
               duplicatesSkipped += 1;
             }
           }
+        }
+
+        // Leave a statement we could not read unread (and unlabelled) so a
+        // human — or the next parser version — can pick it up again.
+        if (!parsedAnyAttachment) {
+          errors.push(`Message ${messageId}: no readable CAMS statement`);
+          continue;
         }
 
         await markProcessed(gmail, messageId, labelId);

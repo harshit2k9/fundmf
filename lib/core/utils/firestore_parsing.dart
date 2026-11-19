@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Firestore hands back several representations for the same logical value
-/// depending on who wrote the document (Cloud Function vs. Flutter vs. console).
+/// depending on who wrote the document (sync service vs. Flutter vs. console).
 /// These helpers normalise them once so models stay simple.
 
 DateTime? asDateTime(dynamic value) {

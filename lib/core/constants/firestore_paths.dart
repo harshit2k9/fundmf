@@ -1,5 +1,5 @@
 /// Firestore collection names. Document identifiers are documented next to
-/// each collection so the Cloud Function, rules and Flutter code agree.
+/// each collection so the sync service, rules and Flutter code agree.
 abstract final class FirestorePaths {
   /// `users/{email}` — email is lower-cased and doubles as the document id so
   /// the admin can provision a profile before the investor ever signs in.

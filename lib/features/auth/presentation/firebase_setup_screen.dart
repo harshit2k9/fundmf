@@ -3,8 +3,8 @@ import 'package:material_ui/material_ui.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 
-/// Shown when `Firebase.initializeApp` fails — almost always because
-/// `lib/firebase_options.dart` still holds placeholders.
+/// Shown when `Firebase.initializeApp` fails — usually a missing or invalid
+/// Firebase configuration in `lib/firebase_options.dart`.
 class FirebaseSetupScreen extends StatelessWidget {
   const FirebaseSetupScreen({super.key, required this.error});
 
@@ -61,9 +61,8 @@ class FirebaseSetupScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const SelectableText(
-                    'flutterfire configure --project=fundmf\n'
-                    'firebase deploy --only firestore:rules,firestore:indexes,functions\n'
-                    'firebase functions:secrets:set GMAIL_REFRESH_TOKEN',
+                    'flutterfire configure --project=fundmf-mf\n'
+                    'firebase deploy --only firestore:rules,firestore:indexes',
                     style: TextStyle(
                       color: Colors.white,
                       fontFamily: 'monospace',

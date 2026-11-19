@@ -21,7 +21,8 @@ class AdminRepository {
   })  : _auth = auth,
         _firestore = firestore,
         _client = client ?? http.Client(),
-        _baseUrl = baseUrl;
+        // A trailing slash in the define would produce '//api/...' and a 404.
+        _baseUrl = baseUrl.replaceAll(RegExp(r'/+$'), '');
 
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
@@ -75,9 +76,13 @@ class AdminRepository {
     }
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
-      final decoded = jsonDecode(response.body);
-      if (decoded is Map) {
-        return SyncResult.fromMap(Map<String, dynamic>.from(decoded));
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map) {
+          return SyncResult.fromMap(Map<String, dynamic>.from(decoded));
+        }
+      } on FormatException {
+        // A proxy or error page returned 200 with a non-JSON body.
       }
       throw const ApiException('The sync API returned an unexpected response.');
     }
