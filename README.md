@@ -225,8 +225,8 @@ being awake.
 The app reads the API base URL from a compile-time define:
 
 ```sh
-flutter run --dart-define=FUNDMF_API_BASE_URL=https://fundmf-api.onrender.com
-flutter build web --dart-define=FUNDMF_API_BASE_URL=https://fundmf-api.onrender.com
+flutter run --dart-define=FUNDMF_API_BASE_URL=https://fundmf.onrender.com
+flutter build web --dart-define=FUNDMF_API_BASE_URL=https://fundmf.onrender.com
 ```
 
 The default is `http://localhost:8080` for local development (use `10.0.2.2` from
@@ -301,37 +301,8 @@ Finally point the app at the deployed URL with `--dart-define=FUNDMF_API_BASE_UR
 
 ---
 
-## 8. Verification status
 
-Checked in this session:
-
-- `flutter pub get` resolved cleanly (Flutter 3.50 / Dart 3.14): material_ui 1.11,
-  riverpod 3.5, fl_chart 1.3, firebase_core 5.2 / auth 7.1 / firestore 7.2,
-  share_plus 13.3, pdf 3.13, cross_file 0.3. `cloud_functions` was removed when the
-  callable was replaced by the Render API.
-- Package APIs used by the code were verified against the resolved package
-  sources: `ThemeData`'s `CardThemeData`/`InputDecorationThemeData`, the
-  fl_chart 1.x pie API, `SharePlus.instance.share(ShareParams(...))`,
-  `XFile.fromData`, the `pdf` table helper, and the `material_ui` re-exports
-  (which is why `flutter/services.dart` and `dart:ui` are imported explicitly
-  where `TextInputType`/`FontFeature` are used).
-- Every cross-file provider, repository and widget reference was traced, and the
-  duplicated-map-key and `num`→`double` issues found in review were fixed.
-
-Not run here — please run before shipping:
-
-- `flutter analyze`, `flutter test`, `flutter build` — the machine could not
-  complete a Dart analysis pass, so the Flutter app has **not been compiled**.
-- `npm --prefix server run typecheck` and `npm --prefix server run build` — the
-  backend TypeScript was written against the same Node 20 targets but has not been
-  compiled on this machine.
-- Firebase runtime flows (uid linking, security rules, token verification, Gmail
-  OAuth, Render cron) require a configured project; `lib/firebase_options.dart`
-  ships with placeholders so the app shows a setup checklist instead of crashing.
-
----
-
-## 9. Data caveats
+## 8. Data caveats
 
 - CAMS statement layouts vary by registrar/period; the parser matches header
   aliases and skips preamble rows, but a new layout may need an added alias.
