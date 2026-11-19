@@ -1,0 +1,109 @@
+rules_version = '2';
+
+// Fundmf access model
+// -------------------
+// * users/{email}      : email is the doc id (lower-case). Admin owns writes.
+// * transactions/{id}  : transaction id is the doc id. Written only by the
+//                        sync service's Firebase Admin credentials (which bypass
+//                        these rules) and by the admin.
+// * sync_logs/{id}     : admin-only audit trail.
+//
+// An investor may read their own profile, and transactions whose PAN matches the
+// PAN on their own profile document. This works even before the sync service has
+// stamped their uid onto the transaction, so newly synced statements show up
+// immediately.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // The service account email, or a custom claim role == 'admin'.
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'fundmfservices@gmail.com' ||
+        request.auth.token.role == 'admin'
+      );
+    }
+
+    function callerEmail() {
+      return request.auth.token.email is string
+        ? request.auth.token.email.lower()
+        : '';
+    }
+
+    function userDoc(email) {
+      return get(/databases/$(database)/documents/users/$(email));
+    }
+
+    function validPan(pan) {
+      return pan is string && pan.matches('^[A-Z]{5}[0-9]{4}[A-Z]$');
+    }
+
+    match /users/{email} {
+      function isSelf() {
+        return isSignedIn() && callerEmail() == email;
+      }
+
+      // The only write an investor may make: bind their auth uid on first login.
+      function isLinkOnlyUpdate() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['uid', 'linkedAt', 'lastLoginAt']);
+      }
+
+      function isCompleteProfile() {
+        return request.resource.data.keys().hasAll(
+            ['email', 'fullName', 'pan', 'phone', 'isApproved', 'clientId']) &&
+          request.resource.data.email == email &&
+          validPan(request.resource.data.pan) &&
+          request.resource.data.fullName is string &&
+          request.resource.data.fullName.size() > 0 &&
+          request.resource.data.phone is string &&
+          request.resource.data.isApproved is bool;
+      }
+
+      // Investors read their own profile; only the admin can list/read others.
+      allow read: if isAdmin() || isSelf();
+
+      allow create: if isAdmin() && isCompleteProfile();
+
+      // Admin edits keep the document id/email stable and the PAN well formed.
+      allow update: if (isAdmin() &&
+          request.resource.data.email == email &&
+          validPan(request.resource.data.pan)) ||
+        (isSelf() && isLinkOnlyUpdate());
+
+      allow delete: if isAdmin();
+    }
+
+    match /transactions/{transactionId} {
+      // Resolves to '' for unprovisioned callers; the comparison then fails.
+      function callerPan() {
+        return callerEmail() != ''
+          ? userDoc(callerEmail()).data.pan
+          : '';
+      }
+
+      allow read: if isAdmin() || (
+        isSignedIn() && (
+          resource.data.uid == request.auth.uid ||
+          (callerEmail() != '' && callerPan() == resource.data.pan)
+        )
+      );
+
+      // Only the sync pipeline (admin credentials) writes transactions.
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /sync_logs/{logId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Deny everything not explicitly allowed above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

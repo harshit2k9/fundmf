@@ -1,0 +1,39 @@
+/// Values shared across the app. Keep environment-specific settings here so
+/// the rest of the code never hard-codes an address or endpoint.
+abstract final class AppConstants {
+  /// The only account allowed to provision clients and trigger CAMS syncs.
+  static const String adminEmail = 'fundmfservices@gmail.com';
+
+  /// Support inbox shown on pending-approval and profile-request screens.
+  static const String supportEmail = 'fundmfservices@gmail.com';
+
+  /// Gmail sender that CAMS uses for statement emails (kept in sync with the
+  /// backend search query).
+  static const String camsSender = 'donotreply@camsonline.com';
+
+  /// Public AMFI NAV provider.
+  static const String mfApiBaseUrl = 'https://api.mfapi.in/mf';
+
+  /// Base URL of the Fundmf backend (Express on Render).
+  ///
+  /// Override per environment, e.g.
+  ///   flutter run --dart-define=FUNDMF_API_BASE_URL=https://fundmf-api.onrender.com
+  ///
+  /// The default targets the local server; Android emulators reach the host
+  /// machine on 10.0.2.2 instead of localhost.
+  static const String apiBaseUrl = String.fromEnvironment(
+    'FUNDMF_API_BASE_URL',
+    defaultValue: 'http://localhost:8080',
+  );
+
+  /// Admin-only endpoint that runs the CAMS sync on demand.
+  /// Must match `server/src/routes/sync.ts`.
+  static const String syncPath = '/api/cams/sync';
+
+  /// How long a live NAV quote is reused before hitting MFAPI again.
+  static const Duration navCacheTtl = Duration(minutes: 30);
+
+  /// Page titles used by the shell app bars.
+  static const String appName = 'Fundmf';
+  static const String tagline = 'Your mutual fund portfolio, reconciled.';
+}

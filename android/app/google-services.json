@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "961928659142",
+    "project_id": "fundmf-mf",
+    "storage_bucket": "fundmf-mf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:961928659142:android:9bb8e0803138ef2f0817c7",
+        "android_client_info": {
+          "package_name": "com.fundmf.fundmf"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBuiGyZnc9Ci4tkb3dC8LqbD5SGA1Atqy8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
