@@ -64,26 +64,30 @@ final sessionProvider = StreamProvider<Session>((ref) async* {
       continue;
     }
 
-    if (profile.uid.isEmpty) {
+    // Promote once: reassigning `profile` inside the try below would drop the
+    // null-check promotion and make the final yield a compile error.
+    var claimed = profile;
+
+    if (claimed.uid.isEmpty) {
       // First login for an admin-provisioned email: claim the profile.
       try {
         await users.linkAuthUser(email: normalizedEmail, uid: user.uid);
-        profile = profile.copyWith(uid: user.uid, linkedAt: DateTime.now());
+        claimed = claimed.copyWith(uid: user.uid, linkedAt: DateTime.now());
       } catch (_) {
         // The next auth event or a manual refresh retries the link.
       }
-    } else if (profile.uid != user.uid) {
+    } else if (claimed.uid != user.uid) {
       // Already claimed by a different auth account.
       yield Session(status: SessionStatus.unprovisioned, user: user);
       continue;
     }
 
     yield Session(
-      status: profile.isApproved
+      status: claimed.isApproved
           ? SessionStatus.active
           : SessionStatus.pendingApproval,
       user: user,
-      profile: profile,
+      profile: claimed,
     );
   }
 });

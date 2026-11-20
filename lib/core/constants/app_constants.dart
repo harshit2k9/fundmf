@@ -16,14 +16,13 @@ abstract final class AppConstants {
 
   /// Base URL of the Fundmf backend (Express on Render).
   ///
-  /// Override per environment, e.g.
-  ///   flutter run --dart-define=FUNDMF_API_BASE_URL=https://fundmf-api.onrender.com
+  /// Defaults to the deployed Render service. Override for local work, e.g.
+  ///   flutter run --dart-define=FUNDMF_API_BASE_URL=http://localhost:8080
   ///
-  /// The default targets the local server; Android emulators reach the host
-  /// machine on 10.0.2.2 instead of localhost.
+  /// Android emulators reach the host machine on 10.0.2.2 instead of localhost.
   static const String apiBaseUrl = String.fromEnvironment(
     'FUNDMF_API_BASE_URL',
-    defaultValue: 'http://localhost:8080',
+    defaultValue: 'https://fundmf.onrender.com',
   );
 
   /// Admin-only endpoint that runs the CAMS sync on demand.

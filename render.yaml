@@ -9,7 +9,9 @@
 
 services:
   - type: web
-    name: fundmf-api
+    # Served at https://fundmf.onrender.com — keep the name in sync with the
+    # URL baked into AppConstants.apiBaseUrl and the README.
+    name: fundmf
     runtime: node
     plan: starter
     rootDir: server

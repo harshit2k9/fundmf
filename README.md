@@ -5,7 +5,8 @@ Fundmf reads CAMS consolidated statements from Gmail, parses every transaction, 
 values the portfolio against live AMFI NAVs.
 
 Authentication and data stay in **Firebase** (Auth + Firestore). The statement
-ingestion runs as a **Node.js/Express service on Render**, deployed from `server/`.
+ingestion runs as a **Node.js/Express service on Render**, deployed from `server/`
+and served at **https://fundmf.onrender.com**.
 
 ---
 
@@ -78,8 +79,12 @@ server/
     config.ts                    Environment configuration
     firebase.ts                  Firebase Admin SDK bootstrap
     routes/sync.ts               POST /api/cams/sync (admin only)
+    http-error.ts                Status + machine code carried by API errors
+    logger.ts                    Structured JSON logs (Render log stream)
+    types.ts                     Parsed row / sync summary types
     middleware/auth.ts           Firebase ID token verification + admin check
     middleware/errors.ts         404 + JSON error responses
+    middleware/async-handler.ts  Express 4 async rejection forwarding
     services/gmail.ts            OAuth2 client, attachment download, labels
     services/cams-csv.ts         Header detection + row → transaction mapping
     services/cams-sync.ts        The ingestion pipeline + sync_logs
@@ -222,23 +227,25 @@ being awake.
 
 ### Client configuration
 
-The app reads the API base URL from a compile-time define:
+The deployed backend is **https://fundmf.onrender.com** and it is the compiled-in
+default (`AppConstants.apiBaseUrl`), so a plain `flutter build` targets production.
+Point a local run at the dev server instead:
 
 ```sh
-flutter run --dart-define=FUNDMF_API_BASE_URL=https://fundmf.onrender.com
-flutter build web --dart-define=FUNDMF_API_BASE_URL=https://fundmf.onrender.com
+flutter build web                                                   # deployed backend
+flutter run --dart-define=FUNDMF_API_BASE_URL=http://localhost:8080  # local backend
 ```
 
-The default is `http://localhost:8080` for local development (use `10.0.2.2` from
-an Android emulator). `AdminRepository` attaches the signed-in admin's Firebase ID
-token to each call and maps HTTP failures to readable messages.
+From an Android emulator the host machine is `http://10.0.2.2:8080`.
+`AdminRepository` attaches the signed-in admin's Firebase ID token to each call and
+maps HTTP failures to readable messages.
 
 ---
 
 ## 7. Setup
 
 ### Prerequisites
-- Flutter 3.47+ (built and analysed with Flutter 3.50 / Dart 3.14)
+- Flutter 3.47+ / Dart 3.14 (analysed and unit-tested with Flutter 3.50.0)
 - Firebase CLI, a Firebase project with **Authentication → Email/Password** enabled
 - Node.js 20 for the backend
 - A Render account (Web Service + Cron Job)
@@ -247,8 +254,10 @@ token to each call and maps HTTP failures to readable messages.
 ### App
 ```sh
 flutter pub get
-dart run flutterfire configure --project=<your-project-id>   # writes lib/firebase_options.dart
-flutter run --dart-define=FUNDMF_API_BASE_URL=http://localhost:8080
+dart pub global activate flutterfire_cli              # once, installs the CLI
+flutterfire configure --project=<your-project-id>   # writes lib/firebase_options.dart
+flutter run                       # talks to https://fundmf.onrender.com
+flutter run --dart-define=FUNDMF_API_BASE_URL=http://localhost:8080   # local backend
 ```
 Create the admin account (`fundmfservices@gmail.com`) in Firebase Authentication →
 Users, then create one `users/{email}` document per client (or use the admin panel).
@@ -270,10 +279,12 @@ curl http://localhost:8080/health
 ### Render deployment
 Use the included blueprint (`render.yaml`) or create the two services manually:
 
-1. **Web Service** — root directory `server`, build `npm install && npm run build`,
-   start `npm start`, health check path `/health`.
+1. **Web Service** — name it `fundmf` (that is what makes the URL
+   `https://fundmf.onrender.com`), root directory `server`, build
+   `npm install && npm run build`, start `npm start`, health check path `/health`.
 2. **Cron Job** — root directory `server`, schedule `0 */6 * * *` (UTC),
-   build `npm install && npm run build`, command `npm run sync`.
+   build `npm install && npm run build`, command `npm run sync` (runs
+   `lib/scripts/run-sync.js`).
 
 Environment variables (both services need the Firebase and Gmail values):
 
@@ -284,6 +295,7 @@ Environment variables (both services need the Firebase and Gmail values):
 | `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET` / `GMAIL_REFRESH_TOKEN` | Secrets |
 | `ADMIN_EMAIL` | Defaults to `fundmfservices@gmail.com` |
 | `ALLOWED_ORIGINS` | Comma separated web origins, or `*` |
+| `CAMS_MAX_MESSAGES` | Optional; unread CAMS emails scanned per run (default 25) |
 | `PORT` | Render injects this automatically |
 
 If you deploy without the blueprint, add `NODE_VERSION=20.18.0`. `GOOGLE_APPLICATION_CREDENTIALS`

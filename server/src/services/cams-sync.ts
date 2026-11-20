@@ -126,6 +126,8 @@ export async function runCamsSync(
           continue;
         }
 
+        let parsedAnyAttachment = false;
+
         for (const part of csvParts) {
           const csvText = await downloadAttachment(gmail, messageId, part);
           if (!csvText) {
@@ -144,6 +146,8 @@ export async function runCamsSync(
             continue;
           }
 
+          parsedAnyAttachment = true;
+
           for (const row of rows) {
             const transaction = mapRow(row);
             if (!transaction) continue;
@@ -156,6 +160,11 @@ export async function runCamsSync(
             }
           }
         }
+
+        // Leave a statement we could not read unread (and unlabelled) so a
+        // human — or the next parser version — can pick it up again. The reason
+        // is already recorded per attachment above.
+        if (!parsedAnyAttachment) continue;
 
         await markProcessed(gmail, messageId, labelId);
         logger.info("Processed CAMS email", {
