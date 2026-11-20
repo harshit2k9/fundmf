@@ -162,11 +162,9 @@ export async function runCamsSync(
         }
 
         // Leave a statement we could not read unread (and unlabelled) so a
-        // human — or the next parser version — can pick it up again.
-        if (!parsedAnyAttachment) {
-          errors.push(`Message ${messageId}: no readable CAMS statement`);
-          continue;
-        }
+        // human — or the next parser version — can pick it up again. The reason
+        // is already recorded per attachment above.
+        if (!parsedAnyAttachment) continue;
 
         await markProcessed(gmail, messageId, labelId);
         logger.info("Processed CAMS email", {

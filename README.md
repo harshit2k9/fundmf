@@ -254,7 +254,8 @@ maps HTTP failures to readable messages.
 ### App
 ```sh
 flutter pub get
-dash run flutterfire configure --project=<your-project-id>   # writes lib/firebase_options.dart
+dart pub global activate flutterfire_cli              # once, installs the CLI
+flutterfire configure --project=<your-project-id>   # writes lib/firebase_options.dart
 flutter run                       # talks to https://fundmf.onrender.com
 flutter run --dart-define=FUNDMF_API_BASE_URL=http://localhost:8080   # local backend
 ```
