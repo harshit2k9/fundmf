@@ -19,7 +19,12 @@ import {
   ensureProcessedLabel,
   markProcessed,
 } from "./gmail";
-import { extractCsvFiles, type StatementFile } from "./zip";
+import { extractStatementFiles, type StatementFile } from "./zip";
+
+/** Where the folio -> PAN directory is cached between sync runs. */
+const FOLIO_DOCUMENT = "settings/folio_directory";
+/** Firestore documents are capped at 1 MiB; stay well below it. */
+const MAX_STORED_FOLIOS = 5000;
 
 /** Serialises manual triggers inside one process so two runs cannot overlap. */
 let inProgress = false;
@@ -31,6 +36,8 @@ export function isSyncRunning(): boolean {
 interface MessageBundle {
   messageId: string;
   files: StatementFile[];
+  /** Attachments that could not be read; the message stays unread. */
+  failures: number;
 }
 
 function describeError(error: unknown): string {
@@ -51,7 +58,7 @@ async function readMessage(
   gmail: ReturnType<typeof createGmailClient>,
   messageId: string,
   errors: string[],
-): Promise<MessageBundle | null> {
+): Promise<MessageBundle> {
   const detail = await gmail.users.messages.get({
     userId: "me",
     id: messageId,
@@ -62,22 +69,24 @@ async function readMessage(
   if (parts.length === 0) {
     // Leave it unread so a human can inspect it.
     errors.push(`Message ${messageId}: no zip or CSV attachment found`);
-    return null;
+    return { messageId, files: [], failures: 1 };
   }
 
   const files: StatementFile[] = [];
+  let failures = 0;
 
   for (const part of parts) {
     const filename = part.filename ?? "attachment";
     try {
       const data = await downloadAttachmentBuffer(gmail, messageId, part);
       if (data.length === 0) {
+        failures += 1;
         errors.push(`Message ${messageId}/${filename}: empty download`);
         continue;
       }
 
       if (filename.toLowerCase().endsWith(".zip")) {
-        const extracted = await extractCsvFiles(
+        const extracted = await extractStatementFiles(
           data,
           config.camsZipPassword,
           filename,
@@ -86,12 +95,14 @@ async function readMessage(
       } else {
         const text = decodeCsv(data);
         if (text.trim().length === 0) {
+          failures += 1;
           errors.push(`Message ${messageId}/${filename}: empty statement`);
           continue;
         }
         files.push({ filename, text });
       }
     } catch (error) {
+      failures += 1;
       errors.push(
         `Message ${messageId}/${filename}: ${describeError(error)}`,
       );
@@ -103,8 +114,100 @@ async function readMessage(
     }
   }
 
-  if (files.length === 0) return null;
-  return { messageId, files };
+  // An empty bundle is still useful: the message was consumed and carried no
+  // statement (for example a KYC form bundle), so it must not be rescanned.
+  return { messageId, files, failures };
+}
+
+/**
+ * The investor master is a one-off CSV. When a previous run consumed it before
+ * folios were cached, fetch it again so transactions can still be mapped to a
+ * PAN.
+ */
+async function backfillFolioMaster(
+  gmail: ReturnType<typeof createGmailClient>,
+  directory: FolioDirectory,
+): Promise<number> {
+  const list = await gmail.users.messages.list({
+    userId: "me",
+    q:
+      `from:${config.camsSender} has:attachment ` +
+      '(filename:csv OR subject:"CSV with Headers")',
+    maxResults: 5,
+  });
+
+  let rows = 0;
+  for (const message of list.data.messages ?? []) {
+    const messageId = message.id;
+    if (!messageId) continue;
+
+    try {
+      const detail = await gmail.users.messages.get({
+        userId: "me",
+        id: messageId,
+        format: "full",
+      });
+
+      for (const part of collectStatementParts(detail.data.payload)) {
+        const filename = part.filename ?? "attachment";
+        const data = await downloadAttachmentBuffer(gmail, messageId, part);
+        if (data.length === 0) continue;
+
+        const files = filename.toLowerCase().endsWith(".zip")
+          ? await extractStatementFiles(
+              data,
+              config.camsZipPassword,
+              filename,
+            )
+          : [{ filename, text: decodeCsv(data) }];
+
+        for (const file of files) {
+          if (!isFolioMasterCsv(file.text)) continue;
+          rows += parseFolioMaster(file.text, directory);
+        }
+      }
+    } catch (error) {
+      logger.warn("Could not read the investor master", {
+        messageId,
+        error,
+      });
+    }
+  }
+
+  return rows;
+}
+
+/** Reads the folio directory cached by earlier runs, if any. */
+async function loadFolioDirectory(): Promise<FolioDirectory> {
+  try {
+    const snapshot = await firestore().doc(FOLIO_DOCUMENT).get();
+    if (!snapshot.exists) return new FolioDirectory();
+    return FolioDirectory.fromRecords(snapshot.data()?.accounts);
+  } catch (error) {
+    logger.warn("Could not read the stored folio directory", error);
+    return new FolioDirectory();
+  }
+}
+
+/** Caches the folio directory so transaction-only emails can still be mapped. */
+async function storeFolioDirectory(directory: FolioDirectory): Promise<void> {
+  const records = directory.records();
+  if (records.length === 0 || records.length > MAX_STORED_FOLIOS) return;
+
+  try {
+    await firestore()
+      .doc(FOLIO_DOCUMENT)
+      .set(
+        {
+          accounts: records,
+          count: records.length,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+  } catch (error) {
+    logger.warn("Could not store the folio directory", error);
+  }
 }
 
 /** Caches PAN -> uid lookups for the duration of one run. */
@@ -209,7 +312,7 @@ export async function runCamsSync(
 
       try {
         const bundle = await readMessage(gmail, messageId, errors);
-        if (bundle) bundles.push(bundle);
+        bundles.push(bundle);
       } catch (error) {
         errors.push(`Message ${messageId}: ${describeError(error)}`);
         logger.error("CAMS message download failed", { messageId, error });
@@ -218,11 +321,13 @@ export async function runCamsSync(
 
     // Phase 2: the investor master ("CSV with Headers") is the static client
     // detail. It maps every folio to a PAN and to its scheme names.
-    const directory = new FolioDirectory();
+    const directory = await loadFolioDirectory();
+    let masterRows = 0;
     for (const bundle of bundles) {
       for (const file of bundle.files) {
         if (!isFolioMasterCsv(file.text)) continue;
         const rows = parseFolioMaster(file.text, directory);
+        masterRows += rows;
         if (rows === 0) {
           errors.push(
             `Message ${bundle.messageId}/${file.filename}: no investor rows found`,
@@ -230,6 +335,13 @@ export async function runCamsSync(
         }
       }
     }
+    // No master in this batch: the message may have been consumed by an
+    // earlier run, so look for the investor master again before mapping.
+    if (directory.size === 0) {
+      masterRows += await backfillFolioMaster(gmail, directory);
+    }
+
+    if (masterRows > 0) await storeFolioDirectory(directory);
     foliosMapped = directory.size;
 
     const resolveUid = createUidResolver();
@@ -241,12 +353,9 @@ export async function runCamsSync(
 
       for (const file of bundle.files) {
         const rows = extractRows(file.text);
-        if (rows.length === 0) {
-          errors.push(
-            `Message ${bundle.messageId}/${file.filename}: no statement rows found`,
-          );
-          continue;
-        }
+        // Not a statement: forms, letters and other documents that arrive in
+        // the same mailbox have no CAMS header row.
+        if (rows.length === 0) continue;
         if (isFolioMasterCsv(file.text)) {
           parsedAny = true;
           continue;
@@ -279,14 +388,22 @@ export async function runCamsSync(
         } else if (directory.size === 0) {
           errors.push(
             `Message ${bundle.messageId}/${file.filename}: no investor master ` +
-              "in this batch, so folios could not be mapped to a PAN",
+              "known yet, so folios could not be mapped to a PAN",
           );
         }
       }
 
-      // Leave a statement we could not read unread (and unlabelled) so a
+      // Leave an attachment we could not read unread (and unlabelled) so a
       // human — or the next parser version — can pick it up again.
-      if (!parsedAny) continue;
+      if (bundle.failures > 0) continue;
+
+      if (!parsedAny && bundle.files.length > 0) {
+        errors.push(
+          `Message ${bundle.messageId}: statement rows were found but none ` +
+            "could be mapped to a PAN",
+        );
+        continue;
+      }
 
       await markProcessed(gmail, bundle.messageId, labelId);
       logger.info("Processed CAMS email", {

@@ -334,6 +334,64 @@ export class FolioDirectory {
   get size(): number {
     return this.accounts.size;
   }
+
+  /**
+   * Serialisable form, stored in Firestore so transaction-only emails in later
+   * runs still know which PAN owns a folio.
+   */
+  records(): FolioRecord[] {
+    return [...this.accounts.values()].map((account) => ({
+      amcCode: account.amcCode,
+      folioNumber: account.folioNumber,
+      pan: account.pan,
+      investorName: account.investorName,
+      schemes: Object.fromEntries(account.schemes),
+    }));
+  }
+
+  /** Rebuilds the directory from a stored snapshot; ignores malformed rows. */
+  static fromRecords(records: unknown): FolioDirectory {
+    const directory = new FolioDirectory();
+    if (!Array.isArray(records)) return directory;
+
+    for (const raw of records) {
+      if (!raw || typeof raw !== "object") continue;
+      const value = raw as Record<string, unknown>;
+      const folioNumber = String(value.folioNumber ?? "").trim();
+      const pan = normalizePan(String(value.pan ?? ""));
+      if (!folioNumber || !pan) continue;
+
+      const schemes = new Map<string, string>();
+      const stored = value.schemes;
+      if (stored && typeof stored === "object") {
+        for (const [code, name] of Object.entries(
+          stored as Record<string, unknown>,
+        )) {
+          const label = String(name ?? "").trim();
+          if (code && label) schemes.set(code, label);
+        }
+      }
+
+      directory.add({
+        amcCode: String(value.amcCode ?? "").toUpperCase(),
+        folioNumber,
+        pan,
+        investorName: String(value.investorName ?? ""),
+        schemes,
+      });
+    }
+
+    return directory;
+  }
+}
+
+/** Stored form of one investor-master folio. */
+export interface FolioRecord {
+  amcCode: string;
+  folioNumber: string;
+  pan: string;
+  investorName: string;
+  schemes: Record<string, string>;
 }
 
 /**
