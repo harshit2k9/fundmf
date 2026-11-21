@@ -43,6 +43,33 @@ class PortfolioRepository {
         PortfolioCalculator.schemeKeyForCode(quote.schemeCode): quote,
     };
 
+    // The CAMS R9/R10 feed carries only the RTA scheme code, so these rows
+    // have no AMFI code. Resolve it from the scheme name to keep live
+    // valuation and P&L working.
+    final uncodedNames = <String>{
+      for (final transaction in transactions)
+        if (transaction.schemeCode <= 0 &&
+            transaction.schemeName.trim().isNotEmpty)
+          transaction.schemeName,
+    };
+
+    if (uncodedNames.isNotEmpty) {
+      final namedQuotes = await Future.wait(
+        uncodedNames.map(
+          (name) async => MapEntry<String, NavQuote?>(
+            name,
+            await _navs.latestNavForName(name),
+          ),
+        ),
+      );
+
+      for (final entry in namedQuotes) {
+        final quote = entry.value;
+        if (quote == null) continue;
+        navByKey[PortfolioCalculator.schemeKeyForName(entry.key)] = quote;
+      }
+    }
+
     return _calculator.calculate(
       transactions: transactions,
       navByKey: navByKey,

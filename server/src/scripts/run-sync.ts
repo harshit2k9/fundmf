@@ -2,7 +2,7 @@
  * Render cron job entrypoint: runs the same ingestion pipeline as the API on a
  * schedule, without depending on the web service being awake.
  *
- * Schedule in render.yaml is every 6 hours, on the hour (UTC).
+ * Schedule in render.yaml is once a day at 09:00 Asia/Kolkata (03:30 UTC).
  */
 import { initFirebase } from "../firebase";
 import { logger } from "../logger";

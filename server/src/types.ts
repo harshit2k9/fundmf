@@ -10,6 +10,8 @@ export interface ParsedTransaction {
   transactionId: string;
   pan: string;
   folioNumber: string;
+  /** RTA / AMC code from the statement (B, H, P, ...). */
+  amcCode: string;
   schemeName: string;
   schemeCode: number;
   transactionDate: Date;
@@ -27,6 +29,10 @@ export interface SyncSummary {
   trigger: SyncTrigger;
   messagesScanned: number;
   attachmentsParsed: number;
+  /** Distinct folios found in the investor master CSV. */
+  foliosMapped: number;
+  /** Rows skipped because their folio is not in the master CSV. */
+  unmappedRows: number;
   transactionsCreated: number;
   duplicatesSkipped: number;
   errors: string[];

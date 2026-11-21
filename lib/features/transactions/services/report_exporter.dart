@@ -166,10 +166,8 @@ class ReportExporter {
       <String>['Generated', Formatters.timestamp(DateTime.now())],
       <String>[],
       <String>[
-        'Transaction ID',
         'Date',
         'Scheme',
-        'AMFI Code',
         'Folio',
         'Type',
         'Units',
@@ -178,10 +176,8 @@ class ReportExporter {
       ],
       for (final transaction in transactions)
         <String>[
-          transaction.transactionId,
           Formatters.isoDate(transaction.transactionDate),
           transaction.schemeName,
-          '${transaction.schemeCode}',
           transaction.folioNumber,
           transaction.kind.displayName,
           transaction.units.toStringAsFixed(3),

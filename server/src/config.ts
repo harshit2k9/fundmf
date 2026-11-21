@@ -40,9 +40,17 @@ export const config = {
     refreshToken: (process.env.GMAIL_REFRESH_TOKEN ?? "").trim(),
   },
 
+  /**
+   * CAMS sends the statement CSVs inside a password protected zip. Override in
+   * the Render dashboard when CAMS rotates the archive password.
+   */
+  camsZipPassword: (process.env.CAMS_ZIP_PASSWORD ?? "Fund@123").trim(),
+
   camsSender: "donotreply@camsonline.com",
   processedLabel: "CAMS_PROCESSED",
   maxMessages: integer(process.env.CAMS_MAX_MESSAGES, 25),
 } as const;
 
-export const gmailQuery = `from:${config.camsSender} has:attachment filename:csv is:unread`;
+export const gmailQuery =
+  `from:${config.camsSender} has:attachment ` +
+  "(filename:zip OR filename:csv) is:unread";

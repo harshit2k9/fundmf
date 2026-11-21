@@ -19,8 +19,9 @@ and served at **https://fundmf.onrender.com**.
   screen is shown with support contact details.
 - Dashboard: invested amount, current value, absolute + % P&L, interactive
   allocation donut, scheme-wise holdings.
-- Transactions: chronological CAMS rows, search by transaction ID / scheme,
-  purchase-redemption filters, date range, detail bottom sheet, CSV/PDF export.
+- Transactions: chronological CAMS rows showing the essentials — date, scheme,
+  folio, type, units, NAV and amount — with search by transaction ID / scheme,
+  purchase-redemption filters, date range, detail sheet and CSV/PDF export.
 - Profile: admin-owned fields, masked PAN toggle, client ID, support request email.
 
 **Admin (`fundmfservices@gmail.com`)**
@@ -85,12 +86,13 @@ server/
     middleware/auth.ts           Firebase ID token verification + admin check
     middleware/errors.ts         404 + JSON error responses
     middleware/async-handler.ts  Express 4 async rejection forwarding
-    services/gmail.ts            OAuth2 client, attachment download, labels
-    services/cams-csv.ts         Header detection + row → transaction mapping
+    services/gmail.ts            OAuth2 client, zip/CSV download, labels
+    services/zip.ts              Password-protected CAMS zip → CSV files
+    services/cams-csv.ts         Header detection, folio→PAN master, row mapping
     services/cams-sync.ts        The ingestion pipeline + sync_logs
     scripts/run-sync.ts          Cron job entrypoint
   package.json / tsconfig.json / .env.example
-render.yaml                      Render blueprint: web service + 6-hourly cron
+render.yaml                      Render blueprint: web service + daily 9 AM IST cron
 firestore.rules                  Role + PAN scoped access control
 firestore.indexes.json           pan/uid + transactionDate composites
 firebase.json                    Firestore rules/indexes (+ emulators, Flutter config)
@@ -124,12 +126,12 @@ Document id is the CAMS `Transaction_ID`, which makes ingestion idempotent.
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `transactionId` | string | CAMS unique id (or deterministic fallback) |
+| `transactionId` | string | RTA transaction number (AMC-prefixed) or deterministic fallback |
 | `pan` | string | Maps the row to a client |
 | `uid` | string | Owning auth uid when the PAN is provisioned |
 | `folioNumber` | string | |
 | `schemeName` | string | |
-| `schemeCode` | number | AMFI code, `0` when absent |
+| `schemeCode` | number | AMFI code; `0` for the R9/R10 feed, resolved by scheme name |
 | `transactionDate` | timestamp | Used for ordering |
 | `transactionType` | string | `Purchase`, `SIP`, `Redemption`, `Switch-In`, `Switch-Out`, `Other` |
 | `amount` | number | Positive INR value |
@@ -191,7 +193,10 @@ excluded from holdings and counted in `closedSchemes`. If MFAPI has no quote for
 scheme the app falls back to average cost and flags `navAvailable = false`.
 
 Live NAVs come from `https://api.mfapi.in/mf/{schemeCode}` (latest entry first),
-cached for 30 minutes with in-flight request deduplication.
+cached for 30 minutes with in-flight request deduplication. When a CAMS row has
+no AMFI code — the R9/R10 feed only carries the RTA scheme code — the app
+resolves the code from the scheme name via `/mf/search` and prefers the
+regular-plan growth option before fetching its NAV.
 
 ---
 
@@ -208,22 +213,31 @@ The pipeline (shared by the endpoint and the cron job, `services/cams-sync.ts`):
 
 1. OAuth2 client from `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`,
    `GMAIL_REFRESH_TOKEN` (Render env vars).
-2. Gmail query: `from:donotreply@camsonline.com has:attachment filename:csv is:unread`.
-3. CSV parts are downloaded (inline data or attachment id).
-4. Header row is detected among the first 60 lines, then column aliases are matched
-   (`Transaction_ID`, `PAN`, `Folio_Number`, `Scheme_Name`, `Scheme_Code`,
-   `Transaction_Date`, `Transaction_Type`, `Amount`, `Units`, `Purchase_NAV`).
-5. PAN → `users` lookup resolves `uid`; the row is written to `transactions/{id}`
-   only if that document does not exist (duplicates are counted, not overwritten).
+2. Gmail query:
+   `from:donotreply@camsonline.com has:attachment (filename:zip OR filename:csv) is:unread`.
+3. Attachments are downloaded as bytes. A `.zip` is opened with the password in
+   `CAMS_ZIP_PASSWORD` (default `Fund@123`) and every CSV inside is unpacked;
+   loose CSV attachments are still accepted.
+4. The investor master ("CSV with Headers" — `FOLIOCHK`, `PAN_NO`, `PRODUCT`,
+   `SCH_NAME`) is read first. It maps each AMC + folio to the client's PAN and
+   each RTA scheme code to its scheme name. The transaction tape (`AMC_CODE`,
+   `FOLIO_CHK`, `SCH_CODE`, `TRXNTYPE`, `TRADDATE`, `PURPRICE`, `UNITS`,
+   `AMOUNT`) carries no PAN, so every row is resolved through that folio map.
+5. PAN → `users` lookup resolves `uid` (cached per run); the row is written to
+   `transactions/{id}` only if that document does not exist, so the daily
+   statement can be re-read without double counting. Rows whose folio is not in
+   the master are counted in `unmappedRows` and skipped; the next statement
+   picks them up once the client is provisioned (or the master is updated).
 6. The email is marked read and labelled `CAMS_PROCESSED` (label created on first
    run). Emails that cannot be parsed stay unread for inspection.
-7. A `sync_logs` document records counts, errors and duration.
+7. A `sync_logs` document records counts (`foliosMapped`, `unmappedRows`, ...),
+   errors and duration.
 8. Only one sync runs per process; a concurrent trigger gets `409`.
 
 Scheduling is a **Render cron job** (`render.yaml`, `npm run sync` →
-`lib/scripts/run-sync.js`) that runs every 6 hours. It executes the pipeline
-directly instead of calling the web service, so it does not depend on the service
-being awake.
+`lib/scripts/run-sync.js`) that runs once every 24 hours at 09:00 IST
+(`30 3 * * *` UTC). It executes the pipeline directly instead of calling the web
+service, so it does not depend on the service being awake.
 
 ### Client configuration
 
@@ -282,7 +296,7 @@ Use the included blueprint (`render.yaml`) or create the two services manually:
 1. **Web Service** — name it `fundmf` (that is what makes the URL
    `https://fundmf.onrender.com`), root directory `server`, build
    `npm install && npm run build`, start `npm start`, health check path `/health`.
-2. **Cron Job** — root directory `server`, schedule `0 */6 * * *` (UTC),
+2. **Cron Job** — root directory `server`, schedule `30 3 * * *` (UTC, 09:00 IST),
    build `npm install && npm run build`, command `npm run sync` (runs
    `lib/scripts/run-sync.js`).
 
@@ -296,6 +310,7 @@ Environment variables (both services need the Firebase and Gmail values):
 | `ADMIN_EMAIL` | Defaults to `fundmfservices@gmail.com` |
 | `ALLOWED_ORIGINS` | Comma separated web origins, or `*` |
 | `CAMS_MAX_MESSAGES` | Optional; unread CAMS emails scanned per run (default 25) |
+| `CAMS_ZIP_PASSWORD` | Password of the CAMS statement zip (default `Fund@123`); rotate in the dashboard |
 | `PORT` | Render injects this automatically |
 
 If you deploy without the blueprint, add `NODE_VERSION=20.18.0`. `GOOGLE_APPLICATION_CREDENTIALS`
@@ -321,4 +336,8 @@ Finally point the app at the deployed URL with `--dart-define=FUNDMF_API_BASE_UR
 - Redemption principal uses the average-cost method, which may differ slightly from
   AMC-reported realised gains (FIFO).
 - NAVs are end-of-day AMFI values, not intraday.
+- The R9/R10 feed carries no AMFI scheme code, so NAVs are matched by scheme
+  name. An unusual or truncated name can fall back to average cost.
+- The investor master must cover every folio in the transaction tape. A folio
+  that is not in the master is reported in `unmappedRows` and skipped.
 - Fundmf is a tracking tool, not investment advice.

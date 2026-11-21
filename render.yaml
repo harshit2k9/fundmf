@@ -1,7 +1,7 @@
 # Fundmf backend on Render.
 #
 #   Web service : Express API - admin manual sync endpoint (POST /api/cams/sync)
-#   Cron job    : the same pipeline, every 6 hours (replaces the Cloud Scheduler)
+#   Cron job    : the same pipeline, once a day at 09:00 Asia/Kolkata (IST)
 #
 # Firebase Authentication and Firestore are unchanged; only compute moved here.
 # Secrets are marked `sync: false` so they are filled in the Render dashboard and
@@ -36,15 +36,19 @@ services:
         sync: false
       - key: GMAIL_REFRESH_TOKEN
         sync: false
+      # Password of the CAMS statement zip. Set it in the Render dashboard to
+      # rotate; the code default (Fund@123) is used when unset.
+      - key: CAMS_ZIP_PASSWORD
+        sync: false
 
   - type: cron
     name: fundmf-cams-sync
     runtime: node
     plan: starter
     rootDir: server
-    # UTC. Every 6 hours at 00:00 / 06:00 / 12:00 / 18:00 UTC
-    # (05:30 / 11:30 / 17:30 / 23:30 Asia/Kolkata).
-    schedule: "0 */6 * * *"
+    # Render cron schedules are UTC. 03:30 UTC = 09:00 Asia/Kolkata (IST),
+    # one regular sync every 24 hours.
+    schedule: "30 3 * * *"
     buildCommand: npm install && npm run build
     startCommand: npm run sync
     envVars:
@@ -61,4 +65,8 @@ services:
       - key: GMAIL_CLIENT_SECRET
         sync: false
       - key: GMAIL_REFRESH_TOKEN
+        sync: false
+      # Password of the CAMS statement zip. Set it in the Render dashboard to
+      # rotate; the code default (Fund@123) is used when unset.
+      - key: CAMS_ZIP_PASSWORD
         sync: false

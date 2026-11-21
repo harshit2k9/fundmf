@@ -193,7 +193,7 @@ class _HoldingsSection extends StatelessWidget {
               icon: Icons.receipt_long_outlined,
               title: 'No holdings yet',
               message:
-                  'CAMS statements are collected every 6 hours. Your schemes '
+                  'CAMS statements are collected daily at 9 AM. Your schemes '
                   'will appear here after the next sync.',
             ),
           ],

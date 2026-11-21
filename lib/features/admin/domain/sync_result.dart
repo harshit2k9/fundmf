@@ -11,6 +11,8 @@ class SyncResult {
     required this.errors,
     required this.durationMs,
     this.trigger = 'manual',
+    this.foliosMapped = 0,
+    this.unmappedRows = 0,
   });
 
   factory SyncResult.fromMap(Map<String, dynamic> map) {
@@ -25,6 +27,8 @@ class SyncResult {
           .toList(growable: false),
       durationMs: asInt(map['durationMs']),
       trigger: asString(map['trigger']).isEmpty ? 'manual' : asString(map['trigger']),
+      foliosMapped: asInt(map['foliosMapped']),
+      unmappedRows: asInt(map['unmappedRows']),
     );
   }
 
@@ -36,6 +40,12 @@ class SyncResult {
   final List<String> errors;
   final int durationMs;
   final String trigger;
+
+  /// Distinct folios found in the investor master CSV (folio -> PAN map).
+  final int foliosMapped;
+
+  /// Transaction rows skipped because their folio was not in the master CSV.
+  final int unmappedRows;
 
   bool get isSuccess => status == 'success';
 
@@ -65,6 +75,8 @@ class SyncLogEntry {
     this.actor = '',
     this.errorMessage = '',
     this.durationMs = 0,
+    this.foliosMapped = 0,
+    this.unmappedRows = 0,
   });
 
   factory SyncLogEntry.fromMap(Map<String, dynamic> map, {String? documentId}) {
@@ -83,6 +95,8 @@ class SyncLogEntry {
       actor: asString(map['actor']),
       errorMessage: asString(map['errorMessage']),
       durationMs: asInt(map['durationMs']),
+      foliosMapped: asInt(map['foliosMapped']),
+      unmappedRows: asInt(map['unmappedRows']),
     );
   }
 
@@ -98,6 +112,8 @@ class SyncLogEntry {
   final String actor;
   final String errorMessage;
   final int durationMs;
+  final int foliosMapped;
+  final int unmappedRows;
 
   bool get isSuccess => status == 'success';
 }

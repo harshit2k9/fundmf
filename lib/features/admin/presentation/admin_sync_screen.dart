@@ -13,7 +13,7 @@ import '../../../core/widgets/status_badge.dart';
 import '../domain/sync_result.dart';
 import 'admin_providers.dart';
 
-/// Admin trigger for the Gmail → CAMS CSV pipeline plus a run history.
+/// Admin trigger for the Gmail → CAMS statement pipeline plus a run history.
 class AdminSyncScreen extends ConsumerStatefulWidget {
   const AdminSyncScreen({super.key});
 
@@ -99,7 +99,7 @@ class _AdminSyncScreenState extends ConsumerState<AdminSyncScreen> {
                                 ),
                                 SizedBox(height: 2),
                                 Text(
-                                  'Scheduled every 6 hours · Asia/Kolkata',
+                                  'Scheduled daily at 9:00 AM · Asia/Kolkata',
                                   style: TextStyle(
                                     fontSize: 11.5,
                                     color: AppColors.slate,
@@ -131,8 +131,8 @@ class _AdminSyncScreenState extends ConsumerState<AdminSyncScreen> {
                             ),
                             const SizedBox(height: 5),
                             SelectableText(
-                              'from:${AppConstants.camsSender} '
-                              'has:attachment filename:csv is:unread',
+                              'from:${AppConstants.camsSender} has:attachment '
+                              '(filename:zip OR filename:csv) is:unread',
                               style: const TextStyle(
                                 fontSize: 11.5,
                                 height: 1.45,
@@ -272,6 +272,8 @@ class _ResultSummary extends StatelessWidget {
             children: <Widget>[
               _Count(label: 'Emails scanned', value: result.messagesScanned),
               _Count(label: 'Attachments', value: result.attachmentsParsed),
+              _Count(label: 'Folios mapped', value: result.foliosMapped),
+              _Count(label: 'Unmapped rows', value: result.unmappedRows),
               _Count(label: 'New rows', value: result.transactionsCreated),
               _Count(label: 'Duplicates', value: result.duplicatesSkipped),
             ],
@@ -368,7 +370,8 @@ class _LogTile extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            '${entry.messagesScanned} emails · ${entry.transactionsCreated} new · '
+            '${entry.messagesScanned} emails · ${entry.foliosMapped} folios · '
+            '${entry.transactionsCreated} new · '
             '${entry.duplicatesSkipped} duplicates'
             '${entry.durationMs > 0 ? ' · ${(entry.durationMs / 1000).toStringAsFixed(1)}s' : ''}',
             style: const TextStyle(fontSize: 11.5, color: AppColors.slate),

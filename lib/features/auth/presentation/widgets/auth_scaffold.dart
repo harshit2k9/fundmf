@@ -196,7 +196,7 @@ class _BrandPanel extends StatelessWidget {
           const SizedBox(height: 18),
           const _Feature(
             icon: Icons.mark_email_read_outlined,
-            text: 'CAMS statements parsed automatically every 6 hours',
+            text: 'CAMS statements parsed automatically every day at 9 AM',
           ),
           const SizedBox(height: 18),
           const _Feature(

@@ -19,23 +19,29 @@ export function createGmailClient(): gmail_v1.Gmail {
   return google.gmail({ version: "v1", auth });
 }
 
-/** Collects every CSV attachment part, including nested multipart bodies. */
-export function collectCsvParts(
+/**
+ * Collects every statement attachment part (zip or csv), including nested
+ * multipart bodies.
+ */
+export function collectStatementParts(
   part: gmail_v1.Schema$MessagePart | null | undefined,
   acc: gmail_v1.Schema$MessagePart[] = [],
 ): gmail_v1.Schema$MessagePart[] {
   if (!part) return acc;
   const filename = (part.filename ?? "").toLowerCase();
-  if (filename.endsWith(".csv") && part.body) acc.push(part);
-  for (const child of part.parts ?? []) collectCsvParts(child, acc);
+  const isStatement =
+    filename.endsWith(".zip") || filename.endsWith(".csv");
+  if (isStatement && part.body) acc.push(part);
+  for (const child of part.parts ?? []) collectStatementParts(child, acc);
   return acc;
 }
 
-export async function downloadAttachment(
+/** Downloads an attachment as raw bytes (a zip cannot be read as text). */
+export async function downloadAttachmentBuffer(
   gmail: gmail_v1.Gmail,
   messageId: string,
   part: gmail_v1.Schema$MessagePart,
-): Promise<string> {
+): Promise<Buffer> {
   let encoded = part.body?.data ?? undefined;
   const attachmentId = part.body?.attachmentId ?? undefined;
 
@@ -48,8 +54,8 @@ export async function downloadAttachment(
     encoded = attachment.data.data ?? undefined;
   }
 
-  if (!encoded) return "";
-  return Buffer.from(encoded, "base64url").toString("utf8");
+  if (!encoded) return Buffer.alloc(0);
+  return Buffer.from(encoded, "base64url");
 }
 
 export async function ensureProcessedLabel(

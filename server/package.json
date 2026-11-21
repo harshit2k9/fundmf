@@ -15,6 +15,7 @@
     "sync": "node lib/scripts/run-sync.js"
   },
   "dependencies": {
+    "@zip.js/zip.js": "^2.25.0",
     "cors": "^2.8.5",
     "csv-parse": "^5.6.0",
     "dotenv": "^16.4.7",

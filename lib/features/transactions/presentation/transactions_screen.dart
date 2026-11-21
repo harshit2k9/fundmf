@@ -219,8 +219,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                       icon: Icons.receipt_long_outlined,
                       title: 'No transactions yet',
                       message:
-                          'Transactions are imported from CAMS emails every 6 '
-                          'hours. They will appear here automatically.',
+                          'Transactions are imported from CAMS statements every day at 9 AM.',
                     );
                   }
                   if (filtered.isEmpty) {

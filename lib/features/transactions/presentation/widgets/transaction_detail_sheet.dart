@@ -100,14 +100,6 @@ class TransactionDetailSheet extends StatelessWidget {
                     ),
                     const Divider(height: 1),
                     InfoRow(
-                      label: 'AMFI scheme code',
-                      value: transaction.schemeCode > 0
-                          ? '${transaction.schemeCode}'
-                          : 'Not in statement',
-                      monospace: true,
-                    ),
-                    const Divider(height: 1),
-                    InfoRow(
                       label: 'Folio number',
                       value: transaction.folioNumber.isEmpty
                           ? '—'
@@ -138,15 +130,8 @@ class TransactionDetailSheet extends StatelessWidget {
                     ),
                     const Divider(height: 1),
                     InfoRow(
-                      label: 'Transaction date',
+                      label: 'Date',
                       value: Formatters.date(transaction.transactionDate),
-                    ),
-                    const Divider(height: 1),
-                    InfoRow(
-                      label: 'Type (raw)',
-                      value: transaction.rawType.isEmpty
-                          ? transaction.kind.label
-                          : transaction.rawType,
                     ),
                     const Divider(height: 1),
                     InfoRow(
@@ -160,27 +145,6 @@ class TransactionDetailSheet extends StatelessWidget {
                       value: Formatters.nav(transaction.purchaseNav),
                       monospace: true,
                     ),
-                    const Divider(height: 1),
-                    InfoRow(
-                      label: 'PAN',
-                      value: Formatters.maskPan(transaction.pan),
-                      monospace: true,
-                    ),
-                    const Divider(height: 1),
-                    InfoRow(
-                      label: 'Source email',
-                      value: transaction.sourceMessageId.isEmpty
-                          ? 'CAMS statement'
-                          : 'Gmail · ${transaction.sourceMessageId}',
-                      monospace: transaction.sourceMessageId.isNotEmpty,
-                    ),
-                    if (transaction.processedAt != null) ...<Widget>[
-                      const Divider(height: 1),
-                      InfoRow(
-                        label: 'Imported at',
-                        value: Formatters.timestamp(transaction.processedAt),
-                      ),
-                    ],
                   ],
                 ),
               ),
