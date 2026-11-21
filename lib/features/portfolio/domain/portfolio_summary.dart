@@ -7,6 +7,7 @@ class PortfolioSummary {
     required this.currentValue,
     required this.absolutePnl,
     required this.returnPercent,
+    this.cagrPercent = 0,
     required this.totalUnits,
     required this.holdings,
     this.closedSchemes = 0,
@@ -26,6 +27,9 @@ class PortfolioSummary {
   /// (absolute P&L ÷ total invested) × 100.
   final double returnPercent;
 
+  /// Annualised return (CAGR) over the holding period.
+  final double cagrPercent;
+
   final double totalUnits;
   final List<SchemeHolding> holdings;
 
@@ -43,6 +47,7 @@ class PortfolioSummary {
     currentValue: 0,
     absolutePnl: 0,
     returnPercent: 0,
+    cagrPercent: 0,
     totalUnits: 0,
     holdings: <SchemeHolding>[],
   );

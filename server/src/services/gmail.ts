@@ -37,6 +37,14 @@ export function collectStatementParts(
 }
 
 /** Downloads an attachment as raw bytes (a zip cannot be read as text). */
+export async function downloadUrl(url: string): Promise<Buffer> {
+  const response = await fetch(url, { redirect: "follow" });
+  if (!response.ok) {
+    throw new Error(`Download failed: HTTP ${response.status} for ${url}`);
+  }
+  return Buffer.from(await response.arrayBuffer());
+}
+
 export async function downloadAttachmentBuffer(
   gmail: gmail_v1.Gmail,
   messageId: string,
@@ -60,17 +68,18 @@ export async function downloadAttachmentBuffer(
 
 export async function ensureProcessedLabel(
   gmail: gmail_v1.Gmail,
+  labelName: string = config.processedLabel,
 ): Promise<string> {
   const response = await gmail.users.labels.list({ userId: "me" });
   const existing = (response.data.labels ?? []).find(
-    (label) => label.name === config.processedLabel,
+    (label) => label.name === labelName,
   );
   if (existing?.id) return existing.id;
 
   const created = await gmail.users.labels.create({
     userId: "me",
     requestBody: {
-      name: config.processedLabel,
+      name: labelName,
       labelListVisibility: "labelShow",
       messageListVisibility: "show",
     },

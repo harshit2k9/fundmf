@@ -126,6 +126,10 @@ class HoldingCard extends StatelessWidget {
                 label: holding.navAvailable ? 'Live NAV' : 'NAV (cost)',
                 value: Formatters.nav(holding.currentNav),
               ),
+              _InlineStat(
+                label: 'CAGR',
+                value: Formatters.signedPercent(holding.cagrPercent),
+              ),
             ],
           ),
           const SizedBox(height: 12),

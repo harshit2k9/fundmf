@@ -13,6 +13,7 @@ class SchemeHolding {
     required this.pnl,
     required this.pnlPercent,
     required this.allocationPercent,
+    this.cagrPercent = 0,
     required this.navAvailable,
     this.navDate,
   });
@@ -32,6 +33,7 @@ class SchemeHolding {
   final double pnl;
   final double pnlPercent;
   final double allocationPercent;
+  final double cagrPercent;
 
   /// False when MFAPI had no quote — the app then falls back to average NAV so
   /// the portfolio still renders instead of failing the whole screen.
@@ -45,7 +47,7 @@ class SchemeHolding {
     return '${schemeName.substring(0, 33)}…';
   }
 
-  SchemeHolding copyWith({double? allocationPercent}) {
+  SchemeHolding copyWith({double? allocationPercent, double? cagrPercent}) {
     return SchemeHolding(
       schemeCode: schemeCode,
       schemeName: schemeName,
@@ -58,6 +60,7 @@ class SchemeHolding {
       pnl: pnl,
       pnlPercent: pnlPercent,
       allocationPercent: allocationPercent ?? this.allocationPercent,
+      cagrPercent: cagrPercent ?? this.cagrPercent,
       navAvailable: navAvailable,
       navDate: navDate,
     );

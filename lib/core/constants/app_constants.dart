@@ -33,6 +33,6 @@ abstract final class AppConstants {
   static const Duration navCacheTtl = Duration(minutes: 30);
 
   /// Page titles used by the shell app bars.
-  static const String appName = 'Fundmf';
-  static const String tagline = 'Your mutual fund portfolio, reconciled.';
+  static const String appName = 'FUNDMF';
+  static const String tagline = '— Powered by Compounding —';
 }

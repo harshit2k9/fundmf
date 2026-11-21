@@ -49,8 +49,15 @@ export const config = {
   camsSender: "donotreply@camsonline.com",
   processedLabel: "CAMS_PROCESSED",
   maxMessages: integer(process.env.CAMS_MAX_MESSAGES, 25),
+
+  /** KFintech (Karvy) statement emails. */
+  kfintechSender: "distributorcare@kfintech.com",
+  kfintechProcessedLabel: "KFIN_PROCESSED",
+  kfintechZipPassword: (process.env.KFINTECH_ZIP_PASSWORD ?? "Fund@123").trim(),
 } as const;
 
 export const gmailQuery =
   `from:${config.camsSender} has:attachment ` +
   "(filename:zip OR filename:csv) is:unread";
+
+export const kfintechGmailQuery = `from:${config.kfintechSender} is:unread`;

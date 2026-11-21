@@ -30,8 +30,8 @@ class ReportExporter {
     return SharePlus.instance.share(
       ShareParams(
         files: <XFile>[file],
-        subject: 'Fundmf transactions — ${profile.fullName}',
-        text: 'Fundmf transaction report for ${profile.fullName}.',
+        subject: 'FUNDMF transactions — ${profile.fullName}',
+        text: 'FUNDMF transaction report for ${profile.fullName}.',
       ),
     );
   }
@@ -53,7 +53,7 @@ class ReportExporter {
             crossAxisAlignment: pw.CrossAxisAlignment.end,
             children: <pw.Widget>[
               pw.Text(
-                'Fundmf',
+                'FUNDMF',
                 style: pw.TextStyle(
                   fontSize: 18,
                   fontWeight: pw.FontWeight.bold,
@@ -147,8 +147,8 @@ class ReportExporter {
     return SharePlus.instance.share(
       ShareParams(
         files: <XFile>[file],
-        subject: 'Fundmf transactions — ${profile.fullName}',
-        text: 'Fundmf transaction report for ${profile.fullName}.',
+        subject: 'FUNDMF transactions — ${profile.fullName}',
+        text: 'FUNDMF transaction report for ${profile.fullName}.',
       ),
     );
   }
@@ -157,7 +157,7 @@ class ReportExporter {
   /// investor forwards it to their CA.
   String _buildCsv(List<FundTransaction> transactions, UserProfile profile) {
     final rows = <List<String>>[
-      <String>['Fundmf transaction report'],
+      <String>['FUNDMF transaction report'],
       <String>['Client', profile.fullName],
       <String>['Client ID', profile.clientId],
       <String>['PAN', profile.pan],

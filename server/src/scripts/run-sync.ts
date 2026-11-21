@@ -6,11 +6,11 @@
  */
 import { initFirebase } from "../firebase";
 import { logger } from "../logger";
-import { runCamsSync } from "../services/cams-sync";
+import { runFullSync } from "../services/sync-all";
 
 async function main(): Promise<void> {
   initFirebase();
-  const summary = await runCamsSync("scheduled", "render-cron");
+  const summary = await runFullSync("scheduled", "render-cron");
   logger.info("Scheduled CAMS sync result", summary);
 
   if (summary.status === "failed") {

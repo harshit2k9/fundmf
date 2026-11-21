@@ -114,7 +114,8 @@ class SummaryHeaderCard extends StatelessWidget {
                     const SizedBox(width: 5),
                     Text(
                       '${Formatters.signedCurrency(summary.absolutePnl)}  ·  '
-                      '${Formatters.signedPercent(summary.returnPercent)}',
+                      '${Formatters.signedPercent(summary.returnPercent)}  ·  '
+                      'CAGR ${Formatters.signedPercent(summary.cagrPercent)}',
                       style: TextStyle(
                         color: accent,
                         fontSize: 11.5,

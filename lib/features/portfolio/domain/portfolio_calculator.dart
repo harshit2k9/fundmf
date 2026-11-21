@@ -46,6 +46,7 @@ class PortfolioCalculator {
       });
 
     final buckets = <String, _SchemeAccumulator>{};
+    DateTime? firstInflowDate;
 
     for (final transaction in ordered) {
       final key = schemeKeyOf(transaction);
@@ -67,6 +68,10 @@ class PortfolioCalculator {
       }
 
       if (transaction.kind.isInflow) {
+        if (firstInflowDate == null ||
+            transaction.transactionDate.isBefore(firstInflowDate)) {
+          firstInflowDate = transaction.transactionDate;
+        }
         final units = transaction.units.abs();
         var amount = transaction.amount.abs();
         // Some statement variants only carry units + NAV.
@@ -75,6 +80,10 @@ class PortfolioCalculator {
         }
         bucket.units += units;
         bucket.costBasis += amount;
+        if (bucket.firstInflowDate == null ||
+            transaction.transactionDate.isBefore(bucket.firstInflowDate!)) {
+          bucket.firstInflowDate = transaction.transactionDate;
+        }
       } else if (transaction.kind.isOutflow) {
         _applyRedemption(bucket, transaction.units.abs());
       }
@@ -105,6 +114,12 @@ class PortfolioCalculator {
           pnl: pnl,
           pnlPercent: bucket.costBasis > 0 ? (pnl / bucket.costBasis) * 100 : 0,
           allocationPercent: 0,
+          cagrPercent: _cagr(
+            bucket.costBasis,
+            currentValue,
+            bucket.firstInflowDate,
+            DateTime.now(),
+          ),
           navAvailable: quote != null,
           navDate: quote?.date,
         ),
@@ -124,6 +139,7 @@ class PortfolioCalculator {
       currentValue: totalValue,
       absolutePnl: absolutePnl,
       returnPercent: totalInvested > 0 ? (absolutePnl / totalInvested) * 100 : 0,
+      cagrPercent: _cagr(totalInvested, totalValue, firstInflowDate, DateTime.now()),
       totalUnits: totalUnits,
       holdings: holdings
           .map(
@@ -164,4 +180,14 @@ class _SchemeAccumulator {
   final List<String> folios = <String>[];
   double units = 0;
   double costBasis = 0;
+  DateTime? firstInflowDate;
+}
+
+double _cagr(double invested, double value, DateTime? firstDate, DateTime now) {
+  if (invested <= 0 || value <= 0 || firstDate == null) return 0;
+  final days = now.difference(firstDate).inDays;
+  if (days < 30) return invested > 0 ? ((value / invested) - 1) * 100 : 0;
+  final years = days / 365.25;
+  if (years <= 0) return 0;
+  return (math.pow(value / invested, 1 / years) - 1) * 100;
 }
