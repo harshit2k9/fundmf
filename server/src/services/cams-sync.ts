@@ -1,4 +1,4 @@
-import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { FieldPath, FieldValue, Timestamp } from "firebase-admin/firestore";
 
 import { config, gmailQuery } from "../config";
 import { firestore } from "../firebase";
@@ -26,6 +26,10 @@ import { extractStatementFiles, type StatementFile } from "./zip";
 const FOLIO_DOCUMENT = "settings/folio_directory";
 /** Firestore documents are capped at 1 MiB; stay well below it. */
 const MAX_STORED_FOLIOS = 5000;
+/** Where the mapper's own version is cached, to trigger a one-off repair. */
+const SYNC_STATE = "settings/sync_state";
+/** Bump when the mapping changes so already imported rows are rewritten. */
+const DATA_VERSION = 3;
 
 /** Serialises manual triggers inside one process so two runs cannot overlap. */
 let inProgress = false;
@@ -230,40 +234,191 @@ function createUidResolver(): (pan: string) => Promise<string> {
   };
 }
 
-/**
- * Writes one transaction. Returns "duplicate" when the RTA transaction number
- * has already been imported, which keeps re-syncs idempotent.
- */
-async function writeTransaction(
+interface UpsertResult {
+  created: number;
+  updated: number;
+  unchanged: number;
+}
+
+/** True when a stored document already carries exactly this mapping. */
+function sameTransaction(
+  stored: Record<string, unknown>,
   transaction: ParsedTransaction,
+): boolean {
+  const number = (value: unknown): number =>
+    typeof value === "number" ? value : Number(value ?? 0);
+
+  return (
+    String(stored.schemeName ?? "") === transaction.schemeName &&
+    String(stored.transactionType ?? "") === transaction.transactionType &&
+    String(stored.pan ?? "") === transaction.pan &&
+    String(stored.folioNumber ?? "") === transaction.folioNumber &&
+    number(stored.schemeCode) === transaction.schemeCode &&
+    number(stored.amount) === transaction.amount &&
+    number(stored.units) === transaction.units &&
+    number(stored.purchaseNav) === transaction.purchaseNav
+  );
+}
+
+/**
+ * Writes mapped rows in bulk so re-syncs stay idempotent **and** refresh rows
+ * that an older build imported with the wrong scheme, type or units.
+ */
+async function upsertTransactions(
+  transactions: ParsedTransaction[],
   messageId: string,
   resolveUid: (pan: string) => Promise<string>,
-): Promise<"created" | "duplicate"> {
-  const ref = firestore()
-    .collection("transactions")
-    .doc(transaction.transactionId);
-  const existing = await ref.get();
-  if (existing.exists) return "duplicate";
+): Promise<UpsertResult> {
+  const result: UpsertResult = { created: 0, updated: 0, unchanged: 0 };
+  if (transactions.length === 0) return result;
 
-  const uid = await resolveUid(transaction.pan);
+  const unique = [...new Map(transactions.map((t) => [t.transactionId, t])).values()];
+  const database = firestore();
+  const collection = database.collection("transactions");
 
-  await ref.set({
-    transactionId: transaction.transactionId,
-    pan: transaction.pan,
-    uid,
-    folioNumber: transaction.folioNumber,
-    schemeName: transaction.schemeName,
-    schemeCode: transaction.schemeCode,
-    transactionDate: Timestamp.fromDate(transaction.transactionDate),
-    transactionType: transaction.transactionType,
-    amount: transaction.amount,
-    units: transaction.units,
-    purchaseNav: transaction.purchaseNav,
-    sourceMessageId: messageId,
-    processedAt: FieldValue.serverTimestamp(),
+  for (let start = 0; start < unique.length; start += 100) {
+    const chunk = unique.slice(start, start + 100);
+    const refs = chunk.map((transaction) => collection.doc(transaction.transactionId));
+    const snapshots = await database.getAll(...refs);
+    const batch = database.batch();
+
+    for (let index = 0; index < chunk.length; index += 1) {
+      const transaction = chunk[index];
+      const snapshot = snapshots[index];
+      const stored = snapshot.data() ?? {};
+      // Never drop an existing link to an investor profile.
+      const uid = (await resolveUid(transaction.pan)) || String(stored.uid ?? "");
+
+      const payload = {
+        transactionId: transaction.transactionId,
+        pan: transaction.pan,
+        uid,
+        folioNumber: transaction.folioNumber,
+        schemeName: transaction.schemeName,
+        schemeCode: transaction.schemeCode,
+        transactionDate: Timestamp.fromDate(transaction.transactionDate),
+        transactionType: transaction.transactionType,
+        amount: transaction.amount,
+        units: transaction.units,
+        purchaseNav: transaction.purchaseNav,
+        sourceMessageId: messageId,
+        processedAt: FieldValue.serverTimestamp(),
+      };
+
+      if (!snapshot.exists) {
+        batch.set(refs[index], payload);
+        result.created += 1;
+      } else if (sameTransaction(stored, transaction)) {
+        result.unchanged += 1;
+      } else {
+        batch.set(refs[index], payload, { merge: true });
+        result.updated += 1;
+      }
+    }
+
+    await batch.commit();
+  }
+
+  return result;
+}
+
+/** Version of the mapping that produced the stored transactions. */
+async function readDataVersion(): Promise<number> {
+  try {
+    const snapshot = await firestore().doc(SYNC_STATE).get();
+    const value = Number(snapshot.data()?.dataVersion ?? 0);
+    return Number.isFinite(value) ? value : 0;
+  } catch (error) {
+    logger.warn("Could not read the sync state", error);
+    return 0;
+  }
+}
+
+async function writeDataVersion(): Promise<void> {
+  try {
+    await firestore()
+      .doc(SYNC_STATE)
+      .set(
+        { dataVersion: DATA_VERSION, updatedAt: FieldValue.serverTimestamp() },
+        { merge: true },
+      );
+  } catch (error) {
+    logger.warn("Could not store the sync state", error);
+  }
+}
+
+/**
+ * Deletes documents written by the old parser, whose ids kept CAMS' single
+ * quotes ('H'-1046363830). They are re-created with clean ids by the repair.
+ */
+async function purgeLegacyTransactions(): Promise<number> {
+  const database = firestore();
+  const collection = database.collection("transactions");
+  let deleted = 0;
+
+  for (let pass = 0; pass < 25; pass += 1) {
+    const snapshot = await collection
+      .where(FieldPath.documentId(), ">=", "'")
+      .where(FieldPath.documentId(), "<=", "'\uf8ff")
+      .limit(400)
+      .get();
+    if (snapshot.empty) break;
+
+    const batch = database.batch();
+    for (const doc of snapshot.docs) batch.delete(doc.ref);
+    await batch.commit();
+    deleted += snapshot.size;
+  }
+
+  return deleted;
+}
+
+/**
+ * Re-reads the most recent statements (already read or not) and rewrites every
+ * row from the current mapping. This is what repairs documents imported by an
+ * older build, where every scheme was "Scheme '02'" and every SIP was Other.
+ */
+async function repairRecentStatements(
+  gmail: ReturnType<typeof createGmailClient>,
+  directory: FolioDirectory,
+  resolveUid: (pan: string) => Promise<string>,
+): Promise<UpsertResult & { rows: number }> {
+  const total = { created: 0, updated: 0, unchanged: 0, rows: 0 };
+
+  const list = await gmail.users.messages.list({
+    userId: "me",
+    q: `from:${config.camsSender} has:attachment (filename:zip OR filename:csv)`,
+    maxResults: Math.min(config.maxMessages, 8),
   });
 
-  return "created";
+  for (const message of list.data.messages ?? []) {
+    const messageId = message.id;
+    if (!messageId) continue;
+
+    try {
+      // Attachment errors are already reported by the normal pass.
+      const bundle = await readMessage(gmail, messageId, []);
+      const mapped: ParsedTransaction[] = [];
+
+      for (const file of bundle.files) {
+        for (const row of extractRows(file.text)) {
+          const entry = mapTransactionRow(row, directory);
+          if (entry.transaction) mapped.push(entry.transaction);
+        }
+      }
+
+      if (mapped.length === 0) continue;
+      const result = await upsertTransactions(mapped, messageId, resolveUid);
+      total.created += result.created;
+      total.updated += result.updated;
+      total.unchanged += result.unchanged;
+      total.rows += mapped.length;
+    } catch (error) {
+      logger.warn("Could not re-check an earlier statement", { messageId, error });
+    }
+  }
+
+  return total;
 }
 
 /**
@@ -289,6 +444,7 @@ export async function runCamsSync(
   let foliosMapped = 0;
   let unmappedRows = 0;
   let transactionsCreated = 0;
+  let transactionsUpdated = 0;
   let duplicatesSkipped = 0;
   let fatalError = "";
 
@@ -337,8 +493,9 @@ export async function runCamsSync(
       }
     }
     // No master in this batch: the message may have been consumed by an
-    // earlier run, so look for the investor master again before mapping.
-    if (directory.size === 0) {
+    // earlier run, so re-read the investor master before mapping. This also
+    // refreshes the scheme catalogue (PRODUCT -> SCH_NAME) of new clients.
+    if (masterRows === 0) {
       masterRows += await backfillFolioMaster(gmail, directory);
     }
 
@@ -350,19 +507,16 @@ export async function runCamsSync(
     // Phase 3: replay the transaction tape against the folio directory.
     for (const bundle of bundles) {
       attachmentsParsed += bundle.files.length;
-      let parsedAny = false;
 
       for (const file of bundle.files) {
         const rows = extractRows(file.text);
         // Not a statement: forms, letters and other documents that arrive in
         // the same mailbox have no CAMS header row.
         if (rows.length === 0) continue;
-        if (isFolioMasterCsv(file.text)) {
-          parsedAny = true;
-          continue;
-        }
+        if (isFolioMasterCsv(file.text)) continue;
 
         let fileRows = 0;
+        const mappedRows: ParsedTransaction[] = [];
         for (const row of rows) {
           const mapped = mapTransactionRow(row, directory);
           if (mapped.unmapped) {
@@ -372,26 +526,26 @@ export async function runCamsSync(
           if (!mapped.transaction) continue;
 
           fileRows += 1;
-          const outcome = await writeTransaction(
-            mapped.transaction,
+          mappedRows.push(mapped.transaction);
+        }
+
+        if (mappedRows.length > 0) {
+          const outcome = await upsertTransactions(
+            mappedRows,
             bundle.messageId,
             resolveUid,
           );
-          if (outcome === "created") {
-            transactionsCreated += 1;
-          } else {
-            duplicatesSkipped += 1;
-          }
+          transactionsCreated += outcome.created;
+          transactionsUpdated += outcome.updated;
+          duplicatesSkipped += outcome.unchanged;
         }
 
-        if (fileRows > 0) {
-          parsedAny = true;
-        } else if (directory.size === 0) {
+        if (fileRows === 0 && directory.size === 0) {
           errors.push(
             `Message ${bundle.messageId}/${file.filename}: no investor master ` +
               "known yet, so folios could not be mapped to a PAN",
           );
-        } else {
+        } else if (fileRows === 0) {
           const columns = headerTokens(file.text).slice(0, 24).join(", ");
           errors.push(
             `Message ${bundle.messageId}/${file.filename}: no rows could be ` +
@@ -404,14 +558,6 @@ export async function runCamsSync(
       // human — or the next parser version — can pick it up again.
       if (bundle.failures > 0) continue;
 
-      if (!parsedAny && bundle.files.length > 0) {
-        errors.push(
-          `Message ${bundle.messageId}: statement rows were found but none ` +
-            "could be mapped to a PAN",
-        );
-        continue;
-      }
-
       await markProcessed(gmail, bundle.messageId, labelId);
       logger.info("Processed CAMS email", {
         messageId: bundle.messageId,
@@ -419,11 +565,33 @@ export async function runCamsSync(
       });
     }
 
+    // Rows whose folio is not in the client master belong to investors who are
+    // not provisioned in Fundmf; they are counted, not reported as a failure.
     if (unmappedRows > 0) {
-      errors.push(
-        `${unmappedRows} transaction row(s) skipped: folio not present in the ` +
-          "investor master CSV",
-      );
+      logger.info("Skipped rows without a client master folio", { unmappedRows });
+    }
+
+    // A newer mapping rewrites rows imported by an older build (wrong scheme
+    // name, "Other" instead of SIP/Purchase, RTA code stored as an AMFI code).
+    if ((await readDataVersion()) < DATA_VERSION) {
+      try {
+        const purged = await purgeLegacyTransactions();
+        if (purged > 0) logger.info("Removed legacy CAMS rows", { purged });
+
+        const repaired = await repairRecentStatements(
+          gmail,
+          directory,
+          resolveUid,
+        );
+        transactionsCreated += repaired.created;
+        transactionsUpdated += repaired.updated;
+        duplicatesSkipped += repaired.unchanged;
+        if (repaired.rows > 0) await writeDataVersion();
+        logger.info("Repaired earlier CAMS rows", repaired);
+      } catch (error) {
+        errors.push(`Repair pass failed: ${describeError(error)}`);
+        logger.error("CAMS repair pass failed", error);
+      }
     }
   } catch (error) {
     fatalError = describeError(error);
@@ -449,6 +617,7 @@ export async function runCamsSync(
     foliosMapped,
     unmappedRows,
     transactionsCreated,
+    transactionsUpdated,
     duplicatesSkipped,
     errors: errors.slice(0, 50),
     durationMs,

@@ -323,12 +323,32 @@ function findHeaderLineIndex(lines: string[]): number {
   return -1;
 }
 
+/**
+ * CAMS mailback CSVs wrap every value in single quotes ('PYGHT8411D'). The
+ * quotes must be removed before any value is compared, otherwise an AMC code
+ * reads as "'H'" and no header alias or scheme code ever matches.
+ */
+function cleanCell(value: string): string {
+  let text = (value ?? "").trim();
+  while (text.length >= 2) {
+    const first = text.charAt(0);
+    if ((first !== "'" && first !== '"') || text.charAt(text.length - 1) !== first) {
+      break;
+    }
+    text = text.slice(1, -1).trim();
+  }
+  return text;
+}
+
 export function extractRows(csvText: string): Array<Record<string, string>> {
   const lines = csvText.replace(/^\uFEFF/, "").split(/\r?\n/);
   const headerIndex = findHeaderLineIndex(lines);
   if (headerIndex < 0) return [];
 
   const payload = lines.slice(headerIndex).join("\n");
+  // CAMS quotes with ' and some exports use "; pick the one the header uses so
+  // a comma inside an address stays inside its cell.
+  const quote = lines[headerIndex].includes("'") ? "'" : '"';
   let matrix: string[][];
   try {
     matrix = parse(payload, {
@@ -336,6 +356,8 @@ export function extractRows(csvText: string): Array<Record<string, string>> {
       trim: true,
       skip_empty_lines: true,
       relax_column_count: true,
+      quote,
+      escape: quote,
     }) as string[][];
   } catch (error) {
     logger.warn("Could not parse CSV payload", error);
@@ -343,12 +365,12 @@ export function extractRows(csvText: string): Array<Record<string, string>> {
   }
 
   if (matrix.length < 2) return [];
-  const headers = matrix[0].map(normalizeToken);
+  const headers = matrix[0].map((header) => normalizeToken(cleanCell(header)));
 
   return matrix.slice(1).map((cells) => {
     const row: Record<string, string> = {};
     headers.forEach((header, index) => {
-      if (header) row[header] = (cells[index] ?? "").trim();
+      if (header) row[header] = cleanCell(cells[index] ?? "");
     });
     return row;
   });
@@ -413,7 +435,23 @@ export class FolioDirectory {
   schemeName(amcCode: string, folioNumber: string, internalCode: string): string {
     const account = this.find(amcCode, folioNumber);
     if (!account) return "";
-    return account.schemes.get(internalCode.toUpperCase()) ?? "";
+
+    const code = internalCode.trim().toUpperCase();
+    if (!code) return "";
+
+    const amc = amcCode.trim().toUpperCase();
+    const keys = new Set<string>([code, `${amc}${code}`]);
+    const bare = code.replace(/^0+/, "");
+    if (bare && bare !== code) {
+      keys.add(bare);
+      keys.add(`${amc}${bare}`);
+    }
+
+    for (const key of keys) {
+      const name = account.schemes.get(key);
+      if (name) return name;
+    }
+    return "";
   }
 
   /** Distinct folios (the number of clients whose statements were mapped). */
@@ -542,7 +580,14 @@ export function parseFolioMaster(
       investorName: readField(row, "investorName"),
       schemes: new Map<string, string>(),
     };
-    if (internalCode && schemeName) account.schemes.set(internalCode, schemeName);
+    // The master identifies a scheme as AMC_CODE + PRODUCT (H02, HGFG, P61);
+    // the transaction feed prints the bare SCH_CODE (02, GFG, 61). Index both
+    // spellings so either statement can find the scheme name.
+    if (schemeName) {
+      for (const key of new Set([internalCode, product].filter(Boolean))) {
+        account.schemes.set(key, schemeName);
+      }
+    }
 
     directory.add(account);
     consumed += 1;
@@ -593,13 +638,19 @@ export function mapTransactionRow(
 
   const rawType = readField(row, "type");
   const kind = mapTransactionType(rawType);
-  const fallbackName = internalCode ? `Scheme ${internalCode}` : "Unknown scheme";
   const schemeName =
     readField(row, "schemeName") ||
     directory.schemeName(amcCode, folioNumber, internalCode) ||
-    fallbackName;
+    (internalCode ? `Scheme ${internalCode}` : "Unknown scheme");
 
   const nav = parseNumber(readField(row, "nav"));
+
+  // SCH_CODE in the CAMS feed is the RTA's own scheme code, not an AMFI code.
+  // Storing it as AMFI made the app fetch an unrelated fund's NAV, so only a
+  // plausible AMFI code is kept; otherwise the app resolves the NAV by name.
+  const declaredCode = Number.parseInt(readField(row, "schemeCode"), 10);
+  const schemeCode =
+    Number.isFinite(declaredCode) && declaredCode >= 100000 ? declaredCode : 0;
 
   const transactionNumber = sanitizeId(readField(row, "transactionId"));
   // The RTA transaction number is unique per AMC; namespace it so two AMCs
@@ -622,7 +673,7 @@ export function mapTransactionRow(
       folioNumber,
       amcCode,
       schemeName,
-      schemeCode: Number.parseInt(readField(row, "schemeCode"), 10) || 0,
+      schemeCode,
       transactionDate: date,
       transactionType: kind,
       rawType: rawType || kind,

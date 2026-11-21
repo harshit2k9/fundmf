@@ -34,6 +34,8 @@ export interface SyncSummary {
   /** Rows skipped because their folio is not in the master CSV. */
   unmappedRows: number;
   transactionsCreated: number;
+  /** Rows rewritten in place because an older build imported them wrong. */
+  transactionsUpdated: number;
   duplicatesSkipped: number;
   errors: string[];
   durationMs: number;
