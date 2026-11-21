@@ -38,11 +38,20 @@ export function collectStatementParts(
 
 /** Downloads an attachment as raw bytes (a zip cannot be read as text). */
 export async function downloadUrl(url: string): Promise<Buffer> {
-  const response = await fetch(url, { redirect: "follow" });
-  if (!response.ok) {
-    throw new Error(`Download failed: HTTP ${response.status} for ${url}`);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+  try {
+    const response = await fetch(url, {
+      redirect: "follow",
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`Download failed: HTTP ${response.status} for ${url}`);
+    }
+    return Buffer.from(await response.arrayBuffer());
+  } finally {
+    clearTimeout(timeout);
   }
-  return Buffer.from(await response.arrayBuffer());
 }
 
 export async function downloadAttachmentBuffer(

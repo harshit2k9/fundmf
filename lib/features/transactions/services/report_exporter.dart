@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:cross_file/cross_file.dart';
@@ -23,14 +25,16 @@ class ReportExporter {
     final bytes = Uint8List.fromList(
       utf8.encode(_buildCsv(transactions, profile)),
     );
-    final file = XFile.fromData(
-      bytes,
+    final filename = 'fundmf-transactions-${_fileStamp()}.csv';
+    final file = await _writeTempFile(filename, bytes);
+    final xFile = XFile(
+      file.path,
       mimeType: 'text/csv',
-      name: 'fundmf-transactions-${_fileStamp()}.csv',
+      name: filename,
     );
     return SharePlus.instance.share(
       ShareParams(
-        files: <XFile>[file],
+        files: <XFile>[xFile],
         subject: 'FUNDMF transactions — ${profile.fullName}',
         text: 'FUNDMF transaction report for ${profile.fullName}.',
       ),
@@ -140,14 +144,16 @@ class ReportExporter {
     );
 
     final bytes = await document.save();
-    final file = XFile.fromData(
-      bytes,
+    final filename = 'fundmf-transactions-${_fileStamp()}.pdf';
+    final file = await _writeTempFile(filename, bytes);
+    final xFile = XFile(
+      file.path,
       mimeType: 'application/pdf',
-      name: 'fundmf-transactions-${_fileStamp()}.pdf',
+      name: filename,
     );
     return SharePlus.instance.share(
       ShareParams(
-        files: <XFile>[file],
+        files: <XFile>[xFile],
         subject: 'FUNDMF transactions — ${profile.fullName}',
         text: 'FUNDMF transaction report for ${profile.fullName}.',
       ),
@@ -199,6 +205,13 @@ class ReportExporter {
         value.contains('\r');
     final escaped = value.replaceAll('"', '""');
     return needsQuotes ? '"$escaped"' : escaped;
+  }
+
+  Future<File> _writeTempFile(String filename, Uint8List bytes) async {
+    final directory = await getTemporaryDirectory();
+    final file = File('${directory.path}/$filename');
+    await file.writeAsBytes(bytes, flush: true);
+    return file;
   }
 
   String _fileStamp() => DateFormat('yyyyMMdd-HHmm').format(DateTime.now());

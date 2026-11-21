@@ -113,7 +113,7 @@ class _CompactBrand extends StatelessWidget {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
             ),
             Text(
-              'Mutual fund portfolio',
+              'Powered by Compounding',
               style: TextStyle(fontSize: 11.5, color: AppColors.slate),
             ),
           ],

@@ -45,16 +45,54 @@ function decodeCsv(buffer: Buffer): string {
   return buffer.toString("utf8").replace(/^\uFEFF/, "");
 }
 
+function extractLinksFromText(text: string): string[] {
+  const acc: string[] = [];
+  for (const match of text.matchAll(/<a[^>]*href=["']([^"']+)["']/gi)) {
+    acc.push(match[1]);
+  }
+  for (const match of text.matchAll(/https?:\/\/[^\s"'<>)]+/g)) {
+    acc.push(match[0]);
+  }
+  return acc;
+}
+
+function isDownloadLink(link: string): boolean {
+  const lower = link.toLowerCase();
+  if (lower.startsWith("mailto:") || lower.startsWith("tel:")) return false;
+  if (/\.(png|jpg|jpeg|gif|bmp|svg|css|js)(\?|$)/.test(lower)) return false;
+  if (/google-analytics|doubleclick|facebook\.com\/tr|analytics/i.test(lower)) {
+    return false;
+  }
+  // Prefer links that look like file downloads or KFintech portals.
+  if (lower.includes("download") || lower.includes(".zip") || lower.includes(".csv") || lower.includes(".txt")) {
+    return true;
+  }
+  if (lower.includes("kfintech") || lower.includes("karvy")) return true;
+  return false;
+}
+
 function extractLinks(
   part: any,
   acc: string[] = [],
 ): string[] {
   if (!part) return acc;
+
+  // Only scan human-readable parts. Scanning attachments (which can be large
+  // zips/CSVs encoded as base64) produced thousands of bogus URLs and made the
+  // sync hang for minutes.
+  const mimeType = String(part.mimeType ?? "").toLowerCase();
+  const hasFilename = Boolean(part.filename);
+  const isText = mimeType.startsWith("text/") || mimeType === "";
   const data = part.body?.data;
-  if (data) {
+  if (data && isText && !hasFilename) {
     try {
       const text = Buffer.from(data, "base64url").toString("utf8");
-      for (const match of text.matchAll(/https?:\/\/[^\s"'<>]+/g)) {
+      // Prefer explicit anchor hrefs so we follow the real download button
+      // instead of every image/tracking URL in the message.
+      for (const match of text.matchAll(/<a[^>]*href=["']([^"']+)["']/gi)) {
+        acc.push(match[1]);
+      }
+      for (const match of text.matchAll(/https?:\/\/[^\s"'<>)]+/g)) {
         acc.push(match[0]);
       }
     } catch {
@@ -76,8 +114,12 @@ async function readMessage(
     format: "full",
   });
 
-  const links = [...new Set(extractLinks(detail.data.payload))];
-  if (links.length === 0) {
+  const links = [...new Set([...extractLinks(detail.data.payload), ...extractLinksFromText(detail.data.snippet ?? "")])];
+  // Drop obvious non-download links (images, tracking pixels, mailto) so we do
+  // not waste minutes fetching them.
+  const candidates = links.filter((link) => isDownloadLink(link));
+  const toFetch = (candidates.length > 0 ? candidates : links).slice(0, 10);
+  if (toFetch.length === 0) {
     errors.push(`Message ${messageId}: no download link found`);
     return { messageId, files: [], failures: 1 };
   }
@@ -85,12 +127,18 @@ async function readMessage(
   const files: StatementFile[] = [];
   let failures = 0;
 
-  for (const link of links) {
+  for (const link of toFetch) {
     try {
       const data = await downloadUrl(link);
       if (data.length === 0) {
         failures += 1;
         errors.push(`Message ${messageId}/${link}: empty download`);
+        continue;
+      }
+      const head = data.slice(0, 256).toString("utf8").toLowerCase();
+      if (head.includes("<!doctype html") || head.includes("<html")) {
+        failures += 1;
+        errors.push(`Message ${messageId}/${link}: download returned an HTML page, not a file`);
         continue;
       }
 
