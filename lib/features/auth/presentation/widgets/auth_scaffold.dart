@@ -92,17 +92,10 @@ class _CompactBrand extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: <Widget>[
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: AppColors.navy,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(
-            Icons.account_balance_wallet_rounded,
-            color: Colors.white,
-            size: 20,
-          ),
+        Image.asset(
+          'assets/logo.png',
+          width: 36,
+          height: 36,
         ),
         const SizedBox(width: 12),
         const Column(
@@ -143,27 +136,32 @@ class _BrandPanel extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.account_balance_wallet_rounded,
-                  color: Colors.white,
-                  size: 22,
-                ),
+              Image.asset(
+                'assets/logo.png',
+                width: 36,
+                height: 36,
               ),
               const SizedBox(width: 12),
-              const Text(
-                AppConstants.appName,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.3,
-                ),
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    AppConstants.appName,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  Text(
+                    'Powered by Compounding',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

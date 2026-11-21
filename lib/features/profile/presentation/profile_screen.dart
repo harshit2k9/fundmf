@@ -22,6 +22,7 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _showPan = false;
+  bool _changingPassword = false;
 
   Future<void> _requestUpdate(UserProfile profile) async {
     final opened = await openSupportEmail(
@@ -49,6 +50,106 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             'No mail app available. Write to ${AppConstants.supportEmail}.',
           ),
         ),
+      );
+    }
+  }
+
+  Future<void> _changePassword() async {
+    final currentController = TextEditingController();
+    final newController = TextEditingController();
+    final confirmController = TextEditingController();
+    String? error;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Change password'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  TextField(
+                    controller: currentController,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Current password',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: newController,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: 'New password',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: confirmController,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Confirm new password',
+                    ),
+                  ),
+                  if (error != null) ...<Widget>[
+                    const SizedBox(height: 10),
+                    Text(
+                      error!,
+                      style: const TextStyle(
+                        color: AppColors.coralDeep,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: _changingPassword
+                      ? null
+                      : () async {
+                          if (newController.text != confirmController.text) {
+                            setDialogState(() => error = 'Passwords do not match.');
+                            return;
+                          }
+                          if (newController.text.length < 6) {
+                            setDialogState(() =>
+                                error = 'Password must be at least 6 characters.');
+                            return;
+                          }
+                          setState(() => _changingPassword = true);
+                          try {
+                            await ref
+                                .read(authRepositoryProvider)
+                                .changePassword(
+                                  currentPassword: currentController.text,
+                                  newPassword: newController.text,
+                                );
+                            if (dialogContext.mounted) {
+                              Navigator.of(dialogContext).pop(true);
+                            }
+                          } catch (e) {
+                            setDialogState(() => error = 'Could not change password. Check current password.');
+                          } finally {
+                            if (mounted) setState(() => _changingPassword = false);
+                          }
+                        },
+                  child: const Text('Update'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password updated successfully.')),
       );
     }
   }
@@ -271,6 +372,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         ),
                       ),
                       const SizedBox(height: 14),
+                      FilledButton.icon(
+                        onPressed: _changingPassword ? null : _changePassword,
+                        icon: const Icon(Icons.lock_reset_rounded, size: 18),
+                        label: const Text('Change password'),
+                      ),
+                      const SizedBox(height: 8),
                       OutlinedButton.icon(
                         onPressed: () => _requestUpdate(profile),
                         icon: const Icon(Icons.edit_outlined, size: 18),

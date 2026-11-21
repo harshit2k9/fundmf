@@ -10,6 +10,7 @@ import '../../../core/widgets/status_badge.dart';
 import '../../auth/presentation/session_providers.dart';
 import '../../portfolio/domain/portfolio_summary.dart';
 import '../../portfolio/presentation/portfolio_providers.dart';
+import '../../portfolio/presentation/portfolio_providers.dart';
 import '../../users/domain/user_profile.dart';
 import 'admin_client_form_screen.dart';
 import 'admin_providers.dart';
@@ -222,6 +223,13 @@ class _ClientCard extends ConsumerWidget {
     }
   }
 
+  void _showDetails(BuildContext context, UserProfile client) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _ClientDetailDialog(client: client),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final (badgeColor, badgeWash) = switch (client.status) {
@@ -324,6 +332,15 @@ class _ClientCard extends ConsumerWidget {
                     color: AppColors.slateLight,
                   ),
                 ),
+              ),
+              TextButton.icon(
+                onPressed: () => _showDetails(context, client),
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  minimumSize: const Size(0, 36),
+                ),
+                icon: const Icon(Icons.visibility_outlined, size: 15),
+                label: const Text('Details'),
               ),
               TextButton.icon(
                 onPressed: onEdit,
@@ -468,6 +485,107 @@ class _MiniStat extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+
+class _ClientDetailDialog extends ConsumerWidget {
+  const _ClientDetailDialog({required this.client});
+
+  final UserProfile client;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final summaryAsync = ref.watch(clientPortfolioProvider(client.pan));
+    return AlertDialog(
+      title: Text(client.fullName),
+      content: SizedBox(
+        width: 420,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              _DetailRow(label: 'Email', value: client.email),
+              _DetailRow(label: 'PAN', value: client.pan),
+              _DetailRow(label: 'Phone', value: client.phone.isEmpty ? '—' : client.phone),
+              _DetailRow(label: 'Client ID', value: client.clientId.isEmpty ? '—' : client.clientId),
+              _DetailRow(label: 'Status', value: client.statusLabel),
+              const SizedBox(height: 12),
+              const Text(
+                'Portfolio',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+              ),
+              const SizedBox(height: 6),
+              switch (summaryAsync) {
+                AsyncData<PortfolioSummary>(:final value) when value.isEmpty =>
+                  const Text('No transactions imported yet.'),
+                AsyncData<PortfolioSummary>(:final value) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text('Invested: ${Formatters.currency(value.totalInvested)}'),
+                      Text('Current: ${Formatters.currency(value.currentValue)}'),
+                      Text('P&L: ${Formatters.currency(value.absolutePnl)} (${Formatters.signedPercent(value.returnPercent)})'),
+                      Text('Schemes: ${value.holdings.length}'),
+                      const SizedBox(height: 8),
+                      for (final holding in value.holdings)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text(
+                            '• ${holding.schemeName} — ${Formatters.currency(holding.currentValue)}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                    ],
+                  ),
+                AsyncError<PortfolioSummary>() =>
+                  const Text('Portfolio summary unavailable.'),
+                _ => const Row(
+                    children: <Widget>[
+                      SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+                      SizedBox(width: 8),
+                      Text('Valuing portfolio…'),
+                    ],
+                  ),
+              },
+            ],
+          ),
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+      ],
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          SizedBox(
+            width: 90,
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 12, color: AppColors.slate, fontWeight: FontWeight.w600),
+            ),
+          ),
+          Expanded(child: Text(value, style: const TextStyle(fontSize: 12))),
+        ],
+      ),
     );
   }
 }

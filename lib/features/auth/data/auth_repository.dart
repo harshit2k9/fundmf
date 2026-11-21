@@ -36,6 +36,25 @@ class AuthRepository {
   Future<void> sendPasswordReset(String email) =>
       _auth.sendPasswordResetEmail(email: email.trim());
 
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null || user.email == null) {
+      throw FirebaseAuthException(
+        code: 'no-current-user',
+        message: 'No signed-in user.',
+      );
+    }
+    final credential = EmailAuthProvider.credential(
+      email: user.email!,
+      password: currentPassword,
+    );
+    await user.reauthenticateWithCredential(credential);
+    await user.updatePassword(newPassword);
+  }
+
   Future<void> signOut() => _auth.signOut();
 
   User _requireUser(UserCredential credential) {

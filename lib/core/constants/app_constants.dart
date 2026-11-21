@@ -11,6 +11,9 @@ abstract final class AppConstants {
   /// backend search query).
   static const String camsSender = 'donotreply@camsonline.com';
 
+  /// Gmail sender that KFintech uses for statement emails.
+  static const String kfintechSender = 'distributorcare@kfintech.com';
+
   /// Public AMFI NAV provider.
   static const String mfApiBaseUrl = 'https://api.mfapi.in/mf';
 

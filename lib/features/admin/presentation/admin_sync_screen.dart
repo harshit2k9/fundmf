@@ -91,7 +91,7 @@ class _AdminSyncScreenState extends ConsumerState<AdminSyncScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
                                 Text(
-                                  'CAMS statement sync',
+                                  'CAMS & KFintech statement sync',
                                   style: TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w700,
@@ -99,7 +99,7 @@ class _AdminSyncScreenState extends ConsumerState<AdminSyncScreen> {
                                 ),
                                 SizedBox(height: 2),
                                 Text(
-                                  'Scheduled daily at 9:00 AM · Asia/Kolkata',
+                                  'CAMS + KFintech · scheduled daily at 9:00 AM · Asia/Kolkata',
                                   style: TextStyle(
                                     fontSize: 11.5,
                                     color: AppColors.slate,
@@ -131,8 +131,9 @@ class _AdminSyncScreenState extends ConsumerState<AdminSyncScreen> {
                             ),
                             const SizedBox(height: 5),
                             SelectableText(
-                              'from:${AppConstants.camsSender} has:attachment '
-                              '(filename:zip OR filename:csv) is:unread',
+                              'CAMS: from:${AppConstants.camsSender} has:attachment '
+                              '(filename:zip OR filename:csv) is:unread\n'
+                              'KFintech: from:${AppConstants.kfintechSender} is:unread',
                               style: const TextStyle(
                                 fontSize: 11.5,
                                 height: 1.45,

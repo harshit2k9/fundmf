@@ -208,8 +208,14 @@ class ReportExporter {
   }
 
   Future<File> _writeTempFile(String filename, Uint8List bytes) async {
+    // share_plus serves files only from `<cache>/share_plus`, so write there to
+    // avoid "Failed to find configured root" on Android.
     final directory = await getTemporaryDirectory();
-    final file = File('${directory.path}/$filename');
+    final shareDir = Directory('${directory.path}/share_plus');
+    if (!await shareDir.exists()) {
+      await shareDir.create(recursive: true);
+    }
+    final file = File('${shareDir.path}/$filename');
     await file.writeAsBytes(bytes, flush: true);
     return file;
   }
