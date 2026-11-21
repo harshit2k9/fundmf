@@ -37,6 +37,8 @@ const COLUMN_ALIASES = {
     "Account Number",
     "FOLIOCHK",
     "FOLIO_CHK",
+    "FOLIO_NO",
+    "FOLIONO",
   ].map(normalizeToken),
   schemeName: [
     "Scheme",
@@ -61,6 +63,7 @@ const COLUMN_ALIASES = {
     "Transaction_Date",
     "Posting Date",
     "TRADDATE",
+    "TRADDT",
     "Trade Date",
   ].map(normalizeToken),
   type: [
@@ -77,8 +80,18 @@ const COLUMN_ALIASES = {
     "Amount (INR)",
     "Transaction Amount",
     "Gross Amount",
+    "AMT",
+    "TRXNAMT",
+    "TRXN_AMT",
   ].map(normalizeToken),
-  units: ["Units", "Units Allotted", "Quantity", "Unit"].map(normalizeToken),
+  units: [
+    "Units",
+    "Units Allotted",
+    "Quantity",
+    "Unit",
+    "UNIT",
+    "NO_OF_UNITS",
+  ].map(normalizeToken),
   nav: [
     "NAV",
     "Purchase NAV",
@@ -111,12 +124,85 @@ const MONTHS: Record<string, number> = {
   dec: 12,
 };
 
+/**
+ * CAMS renames columns between report versions (AMOUNT/AMT/TRXNAMT, UNITS/UNIT,
+ * TRXNSTAT/STATUS). When no exact alias matches, the first column whose name
+ * contains one of these fragments is used, so a new layout does not silently
+ * drop every row.
+ */
+const COLUMN_HINTS: Record<ColumnKey, readonly string[]> = {
+  transactionId: [
+    "trxnno",
+    "trxnnum",
+    "txnno",
+    "trnno",
+    "transactionno",
+    "transactionid",
+    "trxid",
+    "referenceno",
+  ],
+  pan: ["panno", "pannumber", "pan"],
+  folio: ["foliono", "folionum", "folio"],
+  schemeName: ["schname", "schemename", "schemname", "fundname"],
+  schemeCode: ["amfischemecode", "schemecode"],
+  internalSchemeCode: ["schcode", "productcode", "schemeinternalcode"],
+  product: ["product"],
+  amcCode: ["amccode", "amc"],
+  investorName: ["invname", "investorname"],
+  date: [
+    "traddate",
+    "traddt",
+    "transactiondate",
+    "trxndate",
+    "postingdate",
+    "date",
+  ],
+  type: ["trxntype", "transactiontype", "trxndesc", "description", "type"],
+  amount: [
+    "trxnamount",
+    "txnamount",
+    "transactionamount",
+    "grossamount",
+    "netamount",
+    "amount",
+    "amt",
+  ],
+  units: ["unitsallotted", "noofunits", "units", "unit", "quantity", "qty"],
+  nav: [
+    "purchaseprice",
+    "purprice",
+    "applicablenav",
+    "purchasenav",
+    "nav",
+    "price",
+    "rate",
+  ],
+  status: ["trxnstat", "trxnstatus", "transactionstatus", "status"],
+};
+
 function readField(row: Record<string, string>, key: ColumnKey): string {
   for (const alias of COLUMN_ALIASES[key]) {
     const value = row[alias];
     if (value && value.trim().length > 0) return value.trim();
   }
+
+  for (const hint of COLUMN_HINTS[key]) {
+    for (const [header, value] of Object.entries(row)) {
+      if (!header.includes(hint)) continue;
+      if (value && value.trim().length > 0) return value.trim();
+    }
+  }
+
   return "";
+}
+
+/** Status values that mean the RTA rejected or reversed the transaction. */
+const REJECTED_STATUS =
+  /^(n|no|r|rej|rejected|cancel|cancelled|canceled|fail|failed|dishonou?red|reverse[ds]?|reversal|bounce[ds]?|unpaid|0|false)$/;
+
+function isRejectedStatus(status: string): boolean {
+  const value = status.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return value.length > 0 && REJECTED_STATUS.test(value);
 }
 
 function parseNumber(raw: string): number {
@@ -415,6 +501,14 @@ export function isFolioMasterCsv(csvText: string): boolean {
   );
 }
 
+/** Header tokens of the statement (used to diagnose unmapped layouts). */
+export function headerTokens(csvText: string): string[] {
+  const lines = csvText.replace(/^\uFEFF/, "").split(/\r?\n/);
+  const headerIndex = findHeaderLineIndex(lines);
+  if (headerIndex < 0) return [];
+  return lines[headerIndex].split(",").map(normalizeToken).filter(Boolean);
+}
+
 /**
  * Reads the investor master CSV into [directory]. Each row is one folio +
  * scheme pair, so folios repeat; the directory merges the scheme catalogue.
@@ -483,9 +577,12 @@ export function mapTransactionRow(
   // money and no units.
   if (amount === 0 && units === 0) return { transaction: null, unmapped: false };
 
-  // Rejected / reversed rows never reach the ledger.
-  const status = readField(row, "status").toUpperCase();
-  if (status && status !== "Y") return { transaction: null, unmapped: false };
+  // Rejected / reversed rows never reach the ledger. CAMS uses Y/N in some
+  // reports and CONFIRMED/REJECTED in others, so only explicit rejections are
+  // dropped.
+  if (isRejectedStatus(readField(row, "status"))) {
+    return { transaction: null, unmapped: false };
+  }
 
   const account = directory.find(amcCode, folioNumber);
   const pan = normalizePan(readField(row, "pan")) || account?.pan || "";

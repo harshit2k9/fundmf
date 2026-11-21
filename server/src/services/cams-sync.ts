@@ -8,6 +8,7 @@ import type { ParsedTransaction, SyncSummary, SyncTrigger } from "../types";
 import {
   FolioDirectory,
   extractRows,
+  headerTokens,
   isFolioMasterCsv,
   mapTransactionRow,
   parseFolioMaster,
@@ -389,6 +390,12 @@ export async function runCamsSync(
           errors.push(
             `Message ${bundle.messageId}/${file.filename}: no investor master ` +
               "known yet, so folios could not be mapped to a PAN",
+          );
+        } else {
+          const columns = headerTokens(file.text).slice(0, 24).join(", ");
+          errors.push(
+            `Message ${bundle.messageId}/${file.filename}: no rows could be ` +
+              `mapped to a PAN or amount (columns: ${columns || "none detected"})`,
           );
         }
       }
