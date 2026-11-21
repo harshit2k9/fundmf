@@ -44,6 +44,11 @@ export async function downloadUrl(url: string): Promise<Buffer> {
     const response = await fetch(url, {
       redirect: "follow",
       signal: controller.signal,
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (compatible; FundmfSync/1.0; +https://fundmf.onrender.com)",
+        Accept: "*/*",
+      },
     });
     if (!response.ok) {
       throw new Error(`Download failed: HTTP ${response.status} for ${url}`);

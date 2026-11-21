@@ -103,6 +103,148 @@ function extractLinks(
   return acc;
 }
 
+function isZipBytes(data: Buffer): boolean {
+  return (
+    data.length >= 4 &&
+    data[0] === 0x50 &&
+    data[1] === 0x4b &&
+    (data[2] === 0x03 || data[2] === 0x05 || data[2] === 0x07) &&
+    (data[3] === 0x04 || data[3] === 0x06 || data[3] === 0x08)
+  );
+}
+
+/**
+ * KFintech mailback reports are sometimes delivered through an HTML "reports
+ * console" page rather than a direct file. When a download returns HTML, pull
+ * the download links out of it so we can fetch the actual archive behind it.
+ */
+function extractDownloadLinksFromHtml(html: string): string[] {
+  const acc: string[] = [];
+  for (const match of html.matchAll(/<a[^>]*href=["']([^"']+)["']/gi)) {
+    acc.push(match[1]);
+  }
+  // Meta refresh / window.location redirects.
+  for (const match of html.matchAll(/(?:url|href)\s*=\s*["']?([^"'\s>]+)["']?/gi)) {
+    const value = match[1];
+    if (/https?:\/\//i.test(value)) acc.push(value);
+  }
+  return [...new Set(acc)].filter((link) => isDownloadLink(link));
+}
+
+async function processDownloaded(
+  messageId: string,
+  link: string,
+  data: Buffer,
+  errors: string[],
+  files: StatementFile[],
+  failuresRef: { value: number },
+  visited: Set<string>,
+  depth: number,
+): Promise<void> {
+  if (data.length === 0) {
+    failuresRef.value += 1;
+    errors.push(`Message ${messageId}/${link}: empty download`);
+    return;
+  }
+
+  const head = data.slice(0, 256).toString("utf8").toLowerCase();
+  const isHtml =
+    head.includes("<!doctype html") ||
+    head.includes("<html") ||
+    head.includes("<head");
+
+  if (isHtml) {
+    // One level of indirection: the page may carry the real download link.
+    if (depth < 1) {
+      const html = data.toString("utf8");
+      const nestedLinks = extractDownloadLinksFromHtml(html);
+      for (const nested of nestedLinks.slice(0, 5)) {
+        if (visited.has(nested)) continue;
+        visited.add(nested);
+        try {
+          const nestedData = await downloadUrl(nested);
+          await processDownloaded(
+            messageId,
+            nested,
+            nestedData,
+            errors,
+            files,
+            failuresRef,
+            visited,
+            depth + 1,
+          );
+        } catch (error) {
+          failuresRef.value += 1;
+          errors.push(
+            `Message ${messageId}/${nested}: ${describeError(error)}`,
+          );
+        }
+      }
+      if (nestedLinks.length === 0) {
+        failuresRef.value += 1;
+        errors.push(
+          `Message ${messageId}/${link}: download returned an HTML page, not a file`,
+        );
+      }
+    } else {
+      failuresRef.value += 1;
+      errors.push(
+        `Message ${messageId}/${link}: download returned an HTML page, not a file`,
+      );
+    }
+    return;
+  }
+
+  const isZip = isZipBytes(data);
+  const url = link.toLowerCase();
+
+  if (isZip || url.endsWith(".zip")) {
+    try {
+      const extracted = await extractStatementFiles(
+        data,
+        config.kfintechZipPassword,
+        "kfintech.zip",
+      );
+      files.push(...extracted);
+    } catch (error) {
+      failuresRef.value += 1;
+      errors.push(
+        `Message ${messageId}/${link}: ${describeError(error)}`,
+      );
+    }
+    return;
+  }
+
+  if (url.endsWith(".csv") || url.endsWith(".txt")) {
+    const text = decodeCsv(data);
+    if (text.trim().length === 0) {
+      failuresRef.value += 1;
+      errors.push(`Message ${messageId}/${link}: empty statement`);
+      return;
+    }
+    files.push({ filename: link.split("/").pop() || "statement.csv", text });
+    return;
+  }
+
+  // Unknown content type: try zip first, then treat as CSV text.
+  try {
+    const extracted = await extractStatementFiles(
+      data,
+      config.kfintechZipPassword,
+      "kfintech.zip",
+    );
+    files.push(...extracted);
+  } catch {
+    const text = decodeCsv(data);
+    if (text.trim().length > 0 && text.includes(",")) {
+      files.push({ filename: "statement.csv", text });
+    } else {
+      failuresRef.value += 1;
+      errors.push(`Message ${messageId}/${link}: not a CSV or zip`);
+    }
+  }
+}
+
 async function readMessage(
   gmail: ReturnType<typeof createGmailClient>,
   messageId: string,
@@ -125,66 +267,30 @@ async function readMessage(
   }
 
   const files: StatementFile[] = [];
-  let failures = 0;
+  const failuresRef = { value: 0 };
+  const visited = new Set<string>(toFetch);
 
   for (const link of toFetch) {
     try {
       const data = await downloadUrl(link);
-      if (data.length === 0) {
-        failures += 1;
-        errors.push(`Message ${messageId}/${link}: empty download`);
-        continue;
-      }
-      const head = data.slice(0, 256).toString("utf8").toLowerCase();
-      if (head.includes("<!doctype html") || head.includes("<html")) {
-        failures += 1;
-        errors.push(`Message ${messageId}/${link}: download returned an HTML page, not a file`);
-        continue;
-      }
-
-      const url = link.toLowerCase();
-      if (url.endsWith(".zip")) {
-        const extracted = await extractStatementFiles(
-          data,
-          config.kfintechZipPassword,
-          "kfintech.zip",
-        );
-        files.push(...extracted);
-      } else if (url.endsWith(".csv") || url.endsWith(".txt")) {
-        const text = decodeCsv(data);
-        if (text.trim().length === 0) {
-          failures += 1;
-          errors.push(`Message ${messageId}/${link}: empty statement`);
-          continue;
-        }
-        files.push({ filename: link.split("/").pop() || "statement.csv", text });
-      } else {
-        // Try zip first, then text.
-        try {
-          const extracted = await extractStatementFiles(
-            data,
-            config.kfintechZipPassword,
-            "kfintech.zip",
-          );
-          files.push(...extracted);
-        } catch {
-          const text = decodeCsv(data);
-          if (text.trim().length > 0 && text.includes(",")) {
-            files.push({ filename: "statement.csv", text });
-          } else {
-            failures += 1;
-            errors.push(`Message ${messageId}/${link}: not a CSV or zip`);
-          }
-        }
-      }
+      await processDownloaded(
+        messageId,
+        link,
+        data,
+        errors,
+        files,
+        failuresRef,
+        visited,
+        0,
+      );
     } catch (error) {
-      failures += 1;
+      failuresRef.value += 1;
       errors.push(`Message ${messageId}/${link}: ${describeError(error)}`);
       logger.error("KFintech download failed", { messageId, link, error });
     }
   }
 
-  return { messageId, files, failures };
+  return { messageId, files, failures: failuresRef.value };
 }
 
 async function backfillFolioMaster(
