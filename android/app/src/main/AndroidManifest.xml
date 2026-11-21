@@ -3,7 +3,7 @@
          permission is only added automatically for debug/profile builds. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="fundmf"
+        android:label="FUNDMF"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

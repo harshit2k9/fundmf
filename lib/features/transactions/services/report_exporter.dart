@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:cross_file/cross_file.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../core/utils/formatters.dart';
