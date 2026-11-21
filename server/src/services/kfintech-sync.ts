@@ -50,9 +50,6 @@ function extractLinksFromText(text: string): string[] {
   for (const match of text.matchAll(/<a[^>]*href=["']([^"']+)["']/gi)) {
     acc.push(match[1]);
   }
-  for (const match of text.matchAll(/https?:\/\/[^\s"'<>)]+/g)) {
-    acc.push(match[0]);
-  }
   return acc;
 }
 
@@ -87,13 +84,9 @@ function extractLinks(
   if (data && isText && !hasFilename) {
     try {
       const text = Buffer.from(data, "base64url").toString("utf8");
-      // Prefer explicit anchor hrefs so we follow the real download button
-      // instead of every image/tracking URL in the message.
+      // Only anchor hrefs: KFintech puts the real download link in an <a>.
       for (const match of text.matchAll(/<a[^>]*href=["']([^"']+)["']/gi)) {
         acc.push(match[1]);
-      }
-      for (const match of text.matchAll(/https?:\/\/[^\s"'<>)]+/g)) {
-        acc.push(match[0]);
       }
     } catch {
       // ignore undecodable parts
@@ -122,11 +115,6 @@ function extractDownloadLinksFromHtml(html: string): string[] {
   const acc: string[] = [];
   for (const match of html.matchAll(/<a[^>]*href=["']([^"']+)["']/gi)) {
     acc.push(match[1]);
-  }
-  // Meta refresh / window.location redirects.
-  for (const match of html.matchAll(/(?:url|href)\s*=\s*["']?([^"'\s>]+)["']?/gi)) {
-    const value = match[1];
-    if (/https?:\/\//i.test(value)) acc.push(value);
   }
   return [...new Set(acc)].filter((link) => isDownloadLink(link));
 }
