@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { AllocationDonut } from '../components/Donut';
 import { Shell, investorNav } from '../components/Shell';
@@ -18,12 +18,13 @@ import {
   firstName as firstNameOf,
 } from '../lib/format';
 import { summaryForTransactions } from '../lib/portfolio';
-import type { PortfolioSummary } from '../lib/types';
+import type { FundTransaction, PortfolioSummary } from '../lib/types';
 
 export default function DashboardPage() {
   const { profile } = useAuth();
   const pan = profile?.pan ?? '';
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
+  const [transactions, setTransactions] = useState<FundTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -42,9 +43,10 @@ export default function DashboardPage() {
 
     const unsubscribe = watchTransactionsForPan(
       pan,
-      (transactions) => {
+      (nextTransactions) => {
+        setTransactions(nextTransactions);
         const run = ++recompute;
-        void summaryForTransactions(transactions)
+        void summaryForTransactions(nextTransactions)
           .then((next) => {
             if (cancelled || run !== recompute) return;
             setSummary(next);
@@ -76,6 +78,36 @@ export default function DashboardPage() {
 
   const firstName = firstNameOf(profile?.fullName ?? '');
   const today = new Date();
+
+  const monthlyFlow = useMemo(() => {
+    const map = new Map<string, { inflow: number; outflow: number }>();
+    for (const transaction of transactions) {
+      const key = transaction.transactionDate.toISOString().slice(0, 7);
+      const entry = map.get(key) ?? { inflow: 0, outflow: 0 };
+      const amount = Math.abs(transaction.amount);
+      if (
+        transaction.kind === 'Purchase' ||
+        transaction.kind === 'SIP' ||
+        transaction.kind === 'Switch-In'
+      ) {
+        entry.inflow += amount;
+      } else if (
+        transaction.kind === 'Redemption' ||
+        transaction.kind === 'Switch-Out'
+      ) {
+        entry.outflow += amount;
+      }
+      map.set(key, entry);
+    }
+    return [...map.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-12);
+  }, [transactions]);
+
+  const maxFlow = monthlyFlow.reduce(
+    (max, [, value]) => Math.max(max, value.inflow, value.outflow),
+    0,
+  );
 
   return (
     <Shell
@@ -213,6 +245,40 @@ export default function DashboardPage() {
                 </div>
               </div>
             )}
+
+            {monthlyFlow.length > 0 ? (
+              <section className="card">
+                <div className="section-title" style={{ marginBottom: 14 }}>
+                  Monthly flow
+                </div>
+                <div className="flow-chart">
+                  {monthlyFlow.map(([month, value]) => (
+                    <div className="flow-col" key={month}>
+                      <div className="flow-bars">
+                        <div
+                          className="flow-bar in"
+                          style={{
+                            height: maxFlow > 0 ? `${(value.inflow / maxFlow) * 100}%` : '0%',
+                          }}
+                          title={`In ${fmtCurrency(value.inflow)}`}
+                        />
+                        <div
+                          className="flow-bar out"
+                          style={{
+                            height: maxFlow > 0 ? `${(value.outflow / maxFlow) * 100}%` : '0%',
+                          }}
+                          title={`Out ${fmtCurrency(value.outflow)}`}
+                        />
+                      </div>
+                      <div className="flow-label">{month.slice(5)}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="tiny muted" style={{ marginTop: 10 }}>
+                  Inflow vs outflow over the last {monthlyFlow.length} months.
+                </div>
+              </section>
+            ) : null}
           </>
         ) : null}
       </div>

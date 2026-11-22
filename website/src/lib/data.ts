@@ -16,7 +16,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 
-import { API_BASE_URL, SYNC_PATH, db } from './firebase';
+import { ADMIN_EMAIL, API_BASE_URL, SYNC_PATH, db } from './firebase';
 import { normalizeEmail, normalizePan } from './validators';
 import type {
   FundTransaction,
@@ -225,7 +225,11 @@ export function watchAllProfiles(
   return onSnapshot(
     query(collection(db, USERS), orderBy('fullName')),
     (snapshot) => {
-      next(snapshot.docs.map((entry) => mapProfile(entry.data(), entry.id)));
+      next(
+        snapshot.docs
+          .map((entry) => mapProfile(entry.data(), entry.id))
+          .filter((profile) => profile.email !== ADMIN_EMAIL),
+      );
     },
     (error) => onError?.(error),
   );

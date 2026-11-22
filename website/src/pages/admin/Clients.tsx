@@ -7,10 +7,11 @@ import { useIsMobile } from '../../hooks/useMediaQuery';
 import {
   createProfile,
   deleteProfile,
+  fetchTransactionsForPan,
   updateProfile,
   watchAllProfiles,
 } from '../../lib/data';
-import { fmtDate, initials, maskPan } from '../../lib/format';
+import { changeClass, fmtCurrency, fmtDate, fmtSignedCurrency, initials, maskPan } from '../../lib/format';
 import { normalizeEmail } from '../../lib/validators';
 import {
   validateEmail,
@@ -19,6 +20,7 @@ import {
   validateRequired,
 } from '../../lib/validators';
 import type { UserProfile } from '../../lib/types';
+import { summaryForTransactions } from '../../lib/portfolio';
 
 interface Draft {
   email: string;
@@ -42,6 +44,11 @@ export default function AdminClientsPage() {
   const isMobile = useIsMobile();
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [aum, setAum] = useState({
+    invested: 0,
+    current: 0,
+    pnl: 0,
+  });
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<UserProfile | null>(null);
@@ -62,6 +69,34 @@ export default function AdminClientsPage() {
     );
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    if (profiles.length === 0) {
+      setAum({ invested: 0, current: 0, pnl: 0 });
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      let invested = 0;
+      let current = 0;
+      let pnl = 0;
+      for (const profile of profiles) {
+        try {
+          const transactions = await fetchTransactionsForPan(profile.pan);
+          const summary = await summaryForTransactions(transactions);
+          invested += summary.totalInvested;
+          current += summary.currentValue;
+          pnl += summary.absolutePnl;
+        } catch {
+          // Skip clients whose portfolio cannot be valued.
+        }
+      }
+      if (!cancelled) setAum({ invested, current, pnl });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [profiles]);
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -166,6 +201,27 @@ export default function AdminClientsPage() {
       }
     >
       <div className="stack" style={{ gap: 16 }}>
+        <div className="stats">
+          <div className="stat">
+            <span>Clients</span>
+            <strong>{profiles.length}</strong>
+          </div>
+          <div className="stat">
+            <span>Total invested</span>
+            <strong>{fmtCurrency(aum.invested)}</strong>
+          </div>
+          <div className="stat">
+            <span>Total AUM</span>
+            <strong>{fmtCurrency(aum.current)}</strong>
+          </div>
+          <div className="stat">
+            <span>Total P&amp;L</span>
+            <strong className={changeClass(aum.pnl)}>
+              {fmtSignedCurrency(aum.pnl)}
+            </strong>
+          </div>
+        </div>
+
         <div className="card" style={{ padding: 12 }}>
           <input
             className="input"

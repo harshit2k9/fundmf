@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/constants/app_constants.dart';
+
 import '../../../core/constants/firestore_paths.dart';
 import '../../../core/errors/app_exception.dart';
 import '../../../core/utils/validators.dart';
@@ -55,6 +57,7 @@ class UserRepository {
     return _users.orderBy('fullName').snapshots().map(
           (snapshot) => snapshot.docs
               .map((doc) => UserProfile.fromMap(doc.data(), documentId: doc.id))
+              .where((profile) => profile.email != AppConstants.adminEmail)
               .toList(growable: false),
         );
   }
