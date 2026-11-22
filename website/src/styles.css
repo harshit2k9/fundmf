@@ -400,6 +400,11 @@ textarea {
   display: none;
   margin-bottom: 18px;
 }
+/* Phone-only: signed-out visitors can sideload the native app directly. */
+.auth-apk {
+  display: none;
+  margin-bottom: 14px;
+}
 
 /* ----------------------------------------------------------- app shell --- */
 
@@ -943,6 +948,12 @@ tbody tr:hover {
   }
   .auth-card {
     padding: 22px;
+  }
+}
+
+@media (max-width: 767px) {
+  .auth-apk {
+    display: block;
   }
 }
 

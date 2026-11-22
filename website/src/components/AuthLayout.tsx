@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 import { Brand } from './Brand';
+import { DownloadApkButton } from './DownloadApk';
 import { RiskDisclaimer } from './RiskDisclaimer';
 
 /** Two-column brand panel on desktop, single column on phones. */
@@ -41,6 +42,12 @@ export function AuthLayout({ children }: { children: ReactNode }) {
         </div>
         <div className="auth-card">{children}</div>
         <div className="auth-footer">
+          <div className="auth-apk">
+            <DownloadApkButton
+              className="btn btn-accent btn-block"
+              label="Download the Android app"
+            />
+          </div>
           <RiskDisclaimer onCanvas={false} />
         </div>
       </main>
