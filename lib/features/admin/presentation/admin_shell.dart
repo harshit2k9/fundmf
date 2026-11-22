@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/risk_disclaimer.dart';
 import '../../auth/presentation/session_providers.dart';
 import 'admin_clients_screen.dart';
 import 'admin_sync_screen.dart';
@@ -109,7 +110,16 @@ class _AdminShellState extends ConsumerState<AdminShell> {
               ],
             ),
             const VerticalDivider(width: 1),
-            Expanded(child: IndexedStack(index: _index, children: _pages)),
+            Expanded(
+              child: Column(
+                children: <Widget>[
+                  Expanded(
+                    child: IndexedStack(index: _index, children: _pages),
+                  ),
+                  const _ShellFooter(),
+                ],
+              ),
+            ),
           ],
         ),
       );
@@ -117,12 +127,31 @@ class _AdminShellState extends ConsumerState<AdminShell> {
 
     return Scaffold(
       appBar: appBar,
-      body: IndexedStack(index: _index, children: _pages),
+      body: Column(
+        children: <Widget>[
+          Expanded(child: IndexedStack(index: _index, children: _pages)),
+          const _ShellFooter(),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (index) => setState(() => _index = index),
         destinations: _destinations,
       ),
+    );
+  }
+}
+
+class _ShellFooter extends StatelessWidget {
+  const _ShellFooter();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+      color: AppColors.surface,
+      child: const RiskDisclaimer(),
     );
   }
 }

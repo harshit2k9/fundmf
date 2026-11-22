@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/risk_disclaimer.dart';
 
 /// Responsive auth layout: on wide screens a navy brand panel sits beside the
 /// form; on phones the form fills the screen with a compact brand header.
@@ -63,6 +64,8 @@ class AuthScaffold extends StatelessWidget {
                           const SizedBox(height: 20),
                           footer!,
                         ],
+                        const SizedBox(height: 28),
+                        const RiskDisclaimer(),
                       ],
                     ),
                   ),

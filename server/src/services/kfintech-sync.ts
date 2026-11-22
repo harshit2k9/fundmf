@@ -45,6 +45,42 @@ function decodeCsv(buffer: Buffer): string {
   return buffer.toString("utf8").replace(/^\uFEFF/, "");
 }
 
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&amp;/gi, "&")
+    .replace(/&#0*38;/g, "&")
+    .replace(/&quot;/gi, '"');
+}
+
+/**
+ * KFintech mailback mails do not link to the archive directly: they wrap it in
+ * `https://scdelivery.kfintech.com/c/?u=<destination>`, where every character
+ * of the destination is shifted one code point forward — `iuuqt%3B00ett%2F...`
+ * is `https://dss.kfintech.com/...`. Fetching the tracker itself only returns
+ * an HTML landing page, which is what made every run end in "download returned
+ * an HTML page, not a file". Decode the destination and fetch that instead.
+ */
+function decodeTrackerLink(link: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(link);
+  } catch {
+    return null;
+  }
+
+  const payload =
+    url.searchParams.get("u") ??
+    url.searchParams.get("url") ??
+    url.searchParams.get("target");
+  if (!payload || payload.length < 12) return null;
+
+  const decoded = Array.from(payload)
+    .map((char) => String.fromCharCode(char.charCodeAt(0) - 1))
+    .join("");
+
+  return /^https?:\/\/[^\s]+$/i.test(decoded) ? decoded : null;
+}
+
 function extractLinksFromText(text: string): string[] {
   const acc: string[] = [];
   for (const match of text.matchAll(/<a[^>]*href=["']([^"']+)["']/gi)) {
@@ -114,9 +150,28 @@ function isZipBytes(data: Buffer): boolean {
 function extractDownloadLinksFromHtml(html: string): string[] {
   const acc: string[] = [];
   for (const match of html.matchAll(/<a[^>]*href=["']([^"']+)["']/gi)) {
-    acc.push(match[1]);
+    const href = decodeHtmlEntities(match[1]);
+    acc.push(decodeTrackerLink(href) ?? href);
   }
-  return [...new Set(acc)].filter((link) => isDownloadLink(link));
+  // A tracker/console page usually forwards with a meta refresh or a script
+  // assignment instead of an anchor.
+  for (const match of html.matchAll(
+    /<meta[^>]+http-equiv=["']?refresh["']?[^>]*content=["'][^"']*?url=([^"'>\s]+)/gi,
+  )) {
+    acc.push(decodeHtmlEntities(match[1]));
+  }
+  for (const match of html.matchAll(
+    /(?:window\.|document\.)?location(?:\.href)?\s*=\s*["']([^"']+)["']/gi,
+  )) {
+    acc.push(decodeHtmlEntities(match[1]));
+  }
+  for (const match of html.matchAll(
+    /location\.replace\(\s*["']([^"']+)["'][^)]*\)/gi,
+  )) {
+    acc.push(decodeHtmlEntities(match[1]));
+  }
+  const resolved = acc.map((link) => decodeTrackerLink(link) ?? link);
+  return [...new Set(resolved)].filter((link) => isDownloadLink(link));
 }
 
 async function processDownloaded(
@@ -244,7 +299,18 @@ async function readMessage(
     format: "full",
   });
 
-  const links = [...new Set([...extractLinks(detail.data.payload), ...extractLinksFromText(detail.data.snippet ?? "")])];
+  const rawLinks = [
+    ...new Set([
+      ...extractLinks(detail.data.payload),
+      ...extractLinksFromText(detail.data.snippet ?? ""),
+    ]),
+  ];
+  // Tracker links resolve to the archive itself; prefer those and keep the
+  // original as a fallback.
+  const decoded = rawLinks
+    .map((link) => decodeTrackerLink(link))
+    .filter((link): link is string => Boolean(link));
+  const links = [...new Set([...decoded, ...rawLinks])];
   // Drop obvious non-download links (images, tracking pixels, mailto) so we do
   // not waste minutes fetching them.
   const candidates = links.filter((link) => isDownloadLink(link));
@@ -565,7 +631,10 @@ export async function runKfintechSync(
         }
       }
 
-      if (bundle.failures > 0) continue;
+      // Consume a message once it has yielded at least one statement, even if
+      // a secondary link failed. Keeping it unread re-downloaded the same 25
+      // emails on every run and took minutes each time.
+      if (bundle.failures > 0 && bundle.files.length === 0) continue;
 
       await markProcessed(gmail, bundle.messageId, labelId);
       logger.info("Processed KFintech email", {
