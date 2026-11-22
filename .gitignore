@@ -61,3 +61,6 @@ server/*.log
 !.env.example
 *.key.json
 service-account*.json
+
+# Release APKs are build artefacts; keep the 57 MB binaries out of history.
+/apk/*.apk

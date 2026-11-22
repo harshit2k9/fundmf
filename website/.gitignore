@@ -1,0 +1,10 @@
+node_modules
+dist
+.firebase
+*.local
+.DS_Store
+.env
+
+# Build artefact copied in by `npm run copy-apk`; ~57 MB, keep it out of git and
+# serve it from a hosting bucket or a GitHub release asset instead.
+public/fundmf-release.apk
