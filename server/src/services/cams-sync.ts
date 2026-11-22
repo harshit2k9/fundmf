@@ -512,7 +512,14 @@ export async function runCamsSync(
         const rows = extractRows(file.text);
         // Not a statement: forms, letters and other documents that arrive in
         // the same mailbox have no CAMS header row.
-        if (rows.length === 0) continue;
+        if (rows.length === 0) {
+          logger.warn("Ignored a CAMS CSV with no recognised header", {
+            messageId: bundle.messageId,
+            filename: file.filename,
+            columns: headerTokens(file.text).slice(0, 24).join(", "),
+          });
+          continue;
+        }
         if (isFolioMasterCsv(file.text)) continue;
 
         let fileRows = 0;

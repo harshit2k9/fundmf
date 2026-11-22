@@ -25,11 +25,20 @@ const COLUMN_ALIASES = {
     "Trxn ID",
     "TRXNNO",
     "Trxn No",
+    // KFintech (Karvy) RTA tape.
+    "TD_TRNO",
   ].map(normalizeToken),
-  pan: ["PAN", "PAN Number", "Investor PAN", "Primary PAN", "PAN_NO"].map(
-    normalizeToken,
-  ),
+  pan: [
+    "PAN",
+    "PAN Number",
+    "Investor PAN",
+    "Primary PAN",
+    "PAN_NO",
+    "PAN1",
+  ].map(normalizeToken),
   folio: [
+    // KFintech (Karvy) prints the folio as TD_ACNO.
+    "TD_ACNO",
     "Folio",
     "Folio No",
     "Folio Number",
@@ -40,13 +49,17 @@ const COLUMN_ALIASES = {
     "FOLIO_NO",
     "FOLIONO",
   ].map(normalizeToken),
+  // "Fund" alone is the AMC number in KFintech reports, so the descriptive
+  // names must be matched before it.
   schemeName: [
+    "FUNDDESC",
+    "Fund Description",
     "Scheme",
     "Scheme Name",
     "Scheme_Name",
-    "Fund",
     "Fund Name",
     "SCH_NAME",
+    "Fund",
   ].map(normalizeToken),
   schemeCode: ["Scheme Code", "AMFI Code", "AMFI Scheme Code", "Code"].map(
     normalizeToken,
@@ -55,9 +68,12 @@ const COLUMN_ALIASES = {
     normalizeToken,
   ),
   product: ["PRODUCT"].map(normalizeToken),
-  amcCode: ["AMC_CODE", "AMC Code", "AMC"].map(normalizeToken),
+  amcCode: ["AMC_CODE", "AMC Code", "AMC", "TD_FUND"].map(normalizeToken),
   investorName: ["INV_NAME", "Investor Name", "Investor"].map(normalizeToken),
   date: [
+    // KFintech prints the trade date as TD_PRDT (the CRDATE/NAVDATE columns
+    // around it are report-generation and NAV dates).
+    "TD_PRDT",
     "Date",
     "Transaction Date",
     "Transaction_Date",
@@ -67,6 +83,9 @@ const COLUMN_ALIASES = {
     "Trade Date",
   ].map(normalizeToken),
   type: [
+    // TRDESC carries the readable KFintech text ("Systematic Investment");
+    // TD_TRTYPE only carries its short code (SIN, FUL).
+    "TRDESC",
     "Type",
     "Transaction Type",
     "Transaction_Type",
@@ -74,8 +93,12 @@ const COLUMN_ALIASES = {
     "Transaction Description",
     "TRXNTYPE",
     "Trxn Type",
+    "TD_TRTYPE",
   ].map(normalizeToken),
   amount: [
+    // Without TD_AMT the generic "amount" hint lands on TDSAMOUNT and every
+    // transaction is imported with a zero amount.
+    "TD_AMT",
     "Amount",
     "Amount (INR)",
     "Transaction Amount",
@@ -85,6 +108,7 @@ const COLUMN_ALIASES = {
     "TRXN_AMT",
   ].map(normalizeToken),
   units: [
+    "TD_UNITS",
     "Units",
     "Units Allotted",
     "Quantity",
@@ -93,6 +117,7 @@ const COLUMN_ALIASES = {
     "NO_OF_UNITS",
   ].map(normalizeToken),
   nav: [
+    "TD_NAV",
     "NAV",
     "Purchase NAV",
     "Purchase_NAV",
@@ -102,7 +127,9 @@ const COLUMN_ALIASES = {
     "PURPRICE",
     "Purchase Price",
   ].map(normalizeToken),
-  status: ["TRXNSTAT", "Transaction Status", "Status"].map(normalizeToken),
+  status: ["TRNSTAT", "TRXNSTAT", "Transaction Status", "Status"].map(
+    normalizeToken,
+  ),
 } as const;
 
 type ColumnKey = keyof typeof COLUMN_ALIASES;
@@ -142,7 +169,7 @@ const COLUMN_HINTS: Record<ColumnKey, readonly string[]> = {
     "referenceno",
   ],
   pan: ["panno", "pannumber", "pan"],
-  folio: ["foliono", "folionum", "folio"],
+  folio: ["tdacno", "foliono", "folionum", "folio"],
   schemeName: ["schname", "schemename", "schemname", "fundname"],
   schemeCode: ["amfischemecode", "schemecode"],
   internalSchemeCode: ["schcode", "productcode", "schemeinternalcode"],
@@ -150,6 +177,7 @@ const COLUMN_HINTS: Record<ColumnKey, readonly string[]> = {
   amcCode: ["amccode", "amc"],
   investorName: ["invname", "investorname"],
   date: [
+    "tdprdt",
     "traddate",
     "traddt",
     "transactiondate",
@@ -159,6 +187,7 @@ const COLUMN_HINTS: Record<ColumnKey, readonly string[]> = {
   ],
   type: ["trxntype", "transactiontype", "trxndesc", "description", "type"],
   amount: [
+    "tdamt",
     "trxnamount",
     "txnamount",
     "transactionamount",
@@ -167,8 +196,17 @@ const COLUMN_HINTS: Record<ColumnKey, readonly string[]> = {
     "amount",
     "amt",
   ],
-  units: ["unitsallotted", "noofunits", "units", "unit", "quantity", "qty"],
+  units: [
+    "tdunits",
+    "unitsallotted",
+    "noofunits",
+    "units",
+    "unit",
+    "quantity",
+    "qty",
+  ],
   nav: [
+    "tdnav",
     "purchaseprice",
     "purprice",
     "applicablenav",
@@ -522,6 +560,16 @@ export interface FolioRecord {
  * True for the investor/holding master: it carries a PAN, a folio and the
  * scheme catalogue, and no transaction columns.
  */
+/** Column names that only a transaction tape carries. */
+const TRANSACTION_DATE_TOKENS = [
+  "tradddate",
+  "traddt",
+  "trxndate",
+  "tdprdt",
+  "postingdate",
+  "transactiondate",
+].map(normalizeToken);
+
 export function isFolioMasterCsv(csvText: string): boolean {
   const lines = csvText.replace(/^\uFEFF/, "").split(/\r?\n/);
   const headerIndex = findHeaderLineIndex(lines);
@@ -530,6 +578,10 @@ export function isFolioMasterCsv(csvText: string): boolean {
   const tokens = new Set(lines[headerIndex].split(",").map(normalizeToken));
   const hasAny = (aliases: readonly string[]): boolean =>
     aliases.some((alias) => tokens.has(alias));
+
+  // A tape can also carry PAN and a scheme code, so the presence of a
+  // transaction date rules the master out.
+  if (TRANSACTION_DATE_TOKENS.some((token) => tokens.has(token))) return false;
 
   return (
     hasAny(COLUMN_ALIASES.folio) &&
@@ -564,9 +616,20 @@ export function parseFolioMaster(
     const pan = normalizePan(readField(row, "pan"));
     if (!folioNumber || !pan) continue;
 
-    const amcCode = readField(row, "amcCode").toUpperCase();
     const product = readField(row, "product").toUpperCase();
+    let amcCode = readField(row, "amcCode").toUpperCase();
+    // KFintech prints the AMC as a numeric "Fund" (117) and the scheme as
+    // "Product Code" (117IORG). The transaction tape prints the same two as
+    // TD_FUND (117) and FMCODE (117IORG), so derive the AMC from the product
+    // code when the report has no explicit AMC_CODE column.
+    if (!amcCode) {
+      const prefix = /^(\d{2,4})/.exec(product);
+      if (prefix) amcCode = prefix[1];
+    }
     let internalCode = readField(row, "internalSchemeCode").toUpperCase();
+    if (amcCode && internalCode.startsWith(amcCode) && internalCode !== amcCode) {
+      internalCode = internalCode.slice(amcCode.length);
+    }
     if (!internalCode && amcCode && product.startsWith(amcCode)) {
       internalCode = product.slice(amcCode.length);
     }

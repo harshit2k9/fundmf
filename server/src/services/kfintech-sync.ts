@@ -591,7 +591,16 @@ export async function runKfintechSync(
 
       for (const file of bundle.files) {
         const rows = extractRows(file.text);
-        if (rows.length === 0) continue;
+        if (rows.length === 0) {
+          // Silently dropping an unrecognised layout is how the Karvy tape
+          // (TD_ACNO / TD_PRDT / TD_AMT ...) went missing: log its columns.
+          logger.warn("Ignored a KFintech CSV with no recognised header", {
+            messageId: bundle.messageId,
+            filename: file.filename,
+            columns: headerTokens(file.text).slice(0, 24).join(", "),
+          });
+          continue;
+        }
         if (isFolioMasterCsv(file.text)) continue;
 
         let fileRows = 0;
