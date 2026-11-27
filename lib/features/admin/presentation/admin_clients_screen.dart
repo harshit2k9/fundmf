@@ -1,21 +1,26 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../core/errors/app_exception.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/async_value_view.dart';
 import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/info_row.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../../auth/presentation/session_providers.dart';
-import '../../portfolio/domain/portfolio_summary.dart';
-import '../../portfolio/presentation/portfolio_providers.dart';
-import '../../portfolio/presentation/portfolio_providers.dart';
 import '../../users/domain/user_profile.dart';
+import '../domain/client_portfolio.dart';
 import 'admin_client_form_screen.dart';
 import 'admin_providers.dart';
 
-/// Searchable directory of every provisioned client profile.
+enum _ClientFilter { all, active, pending, unclaimed }
+
+enum _ClientSort { name, aum, returns }
+
+/// Searchable directory of every provisioned client, with status filters,
+/// live AUM and one-tap approval.
 class AdminClientsScreen extends ConsumerStatefulWidget {
   const AdminClientsScreen({super.key});
 
@@ -25,6 +30,8 @@ class AdminClientsScreen extends ConsumerStatefulWidget {
 
 class _AdminClientsScreenState extends ConsumerState<AdminClientsScreen> {
   final _search = TextEditingController();
+  _ClientFilter _filter = _ClientFilter.all;
+  _ClientSort _sort = _ClientSort.name;
 
   @override
   void dispose() {
@@ -40,32 +47,52 @@ class _AdminClientsScreenState extends ConsumerState<AdminClientsScreen> {
     );
   }
 
-  List<UserProfile> _filter(List<UserProfile> clients, String query) {
-    final needle = query.trim().toLowerCase();
-    if (needle.isEmpty) return clients;
-    return clients
-        .where(
-          (client) =>
-              client.fullName.toLowerCase().contains(needle) ||
-              client.email.toLowerCase().contains(needle) ||
-              client.pan.toLowerCase().contains(needle) ||
-              client.clientId.toLowerCase().contains(needle),
-        )
-        .toList(growable: false);
+  List<AdminClientPortfolio> _apply(List<AdminClientPortfolio> rows) {
+    final needle = _search.text.trim().toLowerCase();
+    final filtered = rows.where((row) {
+      final client = row.client;
+      final matchesStatus = switch (_filter) {
+        _ClientFilter.all => true,
+        _ClientFilter.active => client.status == AccountStatus.active,
+        _ClientFilter.pending =>
+          client.status == AccountStatus.pendingApproval,
+        _ClientFilter.unclaimed => client.status == AccountStatus.unclaimed,
+      };
+      if (!matchesStatus) return false;
+      if (needle.isEmpty) return true;
+      return client.fullName.toLowerCase().contains(needle) ||
+          client.email.toLowerCase().contains(needle) ||
+          client.pan.toLowerCase().contains(needle) ||
+          client.clientId.toLowerCase().contains(needle);
+    }).toList();
+
+    switch (_sort) {
+      case _ClientSort.name:
+        filtered.sort((a, b) => a.client.fullName.compareTo(b.client.fullName));
+      case _ClientSort.aum:
+        filtered.sort(
+          (a, b) =>
+              b.summary.currentValue.compareTo(a.summary.currentValue),
+        );
+      case _ClientSort.returns:
+        filtered.sort(
+          (a, b) => b.summary.returnPercent.compareTo(a.summary.returnPercent),
+        );
+    }
+    return filtered;
   }
 
   @override
   Widget build(BuildContext context) {
-    final clientsAsync = ref.watch(adminClientsProvider);
-    final query = _search.text;
+    final rowsAsync = ref.watch(adminClientPortfoliosProvider);
 
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1080),
+        constraints: const BoxConstraints(maxWidth: 1120),
         child: Column(
           children: <Widget>[
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
@@ -78,13 +105,13 @@ class _AdminClientsScreenState extends ConsumerState<AdminClientsScreen> {
                           decoration: InputDecoration(
                             hintText: 'Search name, email, PAN or client ID',
                             prefixIcon:
-                                const Icon(Icons.search_rounded, size: 20),
+                                const Icon(Icons.search_rounded, size: 19),
                             suffixIcon: _search.text.isEmpty
                                 ? null
                                 : IconButton(
                                     tooltip: 'Clear search',
                                     icon: const Icon(Icons.close_rounded,
-                                        size: 18),
+                                        size: 17),
                                     onPressed: () {
                                       _search.clear();
                                       setState(() {});
@@ -97,32 +124,117 @@ class _AdminClientsScreenState extends ConsumerState<AdminClientsScreen> {
                       FilledButton.icon(
                         onPressed: () => _openForm(),
                         style: FilledButton.styleFrom(
-                          minimumSize: const Size(0, 52),
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 18),
+                          minimumSize: const Size(0, 46),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
                         ),
                         icon: const Icon(Icons.person_add_alt_1_rounded,
-                            size: 18),
+                            size: 17),
                         label: const Text('New client'),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: <Widget>[
+                              _FilterChip(
+                                label: 'All',
+                                selected: _filter == _ClientFilter.all,
+                                onSelected: () => setState(
+                                  () => _filter = _ClientFilter.all,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              _FilterChip(
+                                label: 'Active',
+                                selected: _filter == _ClientFilter.active,
+                                onSelected: () => setState(
+                                  () => _filter = _ClientFilter.active,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              _FilterChip(
+                                label: 'Pending approval',
+                                selected: _filter == _ClientFilter.pending,
+                                onSelected: () => setState(
+                                  () => _filter = _ClientFilter.pending,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              _FilterChip(
+                                label: 'Unclaimed',
+                                selected: _filter == _ClientFilter.unclaimed,
+                                onSelected: () => setState(
+                                  () => _filter = _ClientFilter.unclaimed,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      PopupMenuButton<_ClientSort>(
+                        tooltip: 'Sort clients',
+                        initialValue: _sort,
+                        onSelected: (value) => setState(() => _sort = value),
+                        itemBuilder: (context) =>
+                            const <PopupMenuEntry<_ClientSort>>[
+                          PopupMenuItem<_ClientSort>(
+                            value: _ClientSort.name,
+                            child: Text('By name'),
+                          ),
+                          PopupMenuItem<_ClientSort>(
+                            value: _ClientSort.aum,
+                            child: Text('By portfolio value'),
+                          ),
+                          PopupMenuItem<_ClientSort>(
+                            value: _ClientSort.returns,
+                            child: Text('By return %'),
+                          ),
+                        ],
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Icon(Icons.swap_vert_rounded, size: 15),
+                              SizedBox(width: 4),
+                              Text(
+                                'Sort',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 8),
-                  AsyncValueView<List<UserProfile>>(
-                    asyncValue: clientsAsync,
+                  AsyncValueView<List<AdminClientPortfolio>>(
+                    asyncValue: rowsAsync,
                     loading: const SizedBox.shrink(),
-                    builder: (clients) {
-                      final active = clients
-                          .where((c) => c.status == AccountStatus.active)
-                          .length;
-                      final unclaimed = clients
-                          .where((c) => c.status == AccountStatus.unclaimed)
-                          .length;
+                    builder: (rows) {
+                      final totals = AdminTotals.from(rows);
                       return Text(
-                        '${clients.length} clients  ·  $active active  ·  '
-                        '$unclaimed unclaimed',
+                        '${totals.clients} clients  ·  ${totals.active} active  ·  '
+                        '${totals.pending} pending  ·  '
+                        '${Formatters.currency(totals.aum)} managed',
                         style: const TextStyle(
-                          fontSize: 11.5,
+                          fontSize: 11,
                           color: AppColors.slate,
                         ),
                       );
@@ -132,12 +244,11 @@ class _AdminClientsScreenState extends ConsumerState<AdminClientsScreen> {
               ),
             ),
             Expanded(
-              child: AsyncValueView<List<UserProfile>>(
-                asyncValue: clientsAsync,
-                onRetry: () => ref.invalidate(adminClientsProvider),
-                builder: (clients) {
-                  final filtered = _filter(clients, query);
-                  if (clients.isEmpty) {
+              child: AsyncValueView<List<AdminClientPortfolio>>(
+                asyncValue: rowsAsync,
+                onRetry: () => ref.invalidate(adminClientPortfoliosProvider),
+                builder: (rows) {
+                  if (rows.isEmpty) {
                     return const EmptyState(
                       icon: Icons.people_outline_rounded,
                       title: 'No clients provisioned',
@@ -146,11 +257,13 @@ class _AdminClientsScreenState extends ConsumerState<AdminClientsScreen> {
                           'access.',
                     );
                   }
+                  final filtered = _apply(rows);
                   if (filtered.isEmpty) {
                     return const EmptyState(
                       icon: Icons.search_off_rounded,
                       title: 'No matching clients',
-                      message: 'Try a different name, email, PAN or client ID.',
+                      message:
+                          'Try a different search term, status filter or sort.',
                     );
                   }
                   return ListView.separated(
@@ -159,10 +272,12 @@ class _AdminClientsScreenState extends ConsumerState<AdminClientsScreen> {
                     separatorBuilder: (context, index) =>
                         const SizedBox(height: 10),
                     itemBuilder: (context, index) {
-                      final client = filtered[index];
+                      final row = filtered[index];
                       return _ClientCard(
-                        client: client,
-                        onEdit: () => _openForm(client),
+                        row: row,
+                        onEdit: () => _openForm(row.client),
+                        onDetails: () =>
+                            _showDetails(context, row),
                       );
                     },
                   );
@@ -174,15 +289,59 @@ class _AdminClientsScreenState extends ConsumerState<AdminClientsScreen> {
       ),
     );
   }
+
+  void _showDetails(BuildContext context, AdminClientPortfolio row) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => _ClientDossier(row: row),
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onSelected(),
+      showCheckmark: false,
+      labelStyle: TextStyle(
+        fontSize: 11.5,
+        fontWeight: FontWeight.w600,
+        color: selected ? Colors.white : AppColors.ink,
+      ),
+      selectedColor: AppColors.ink,
+      backgroundColor: AppColors.surface,
+      side: BorderSide(color: selected ? AppColors.ink : AppColors.border),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+    );
+  }
 }
 
 class _ClientCard extends ConsumerWidget {
-  const _ClientCard({required this.client, required this.onEdit});
+  const _ClientCard({
+    required this.row,
+    required this.onEdit,
+    required this.onDetails,
+  });
 
-  final UserProfile client;
+  final AdminClientPortfolio row;
   final VoidCallback onEdit;
+  final VoidCallback onDetails;
 
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
+    final client = row.client;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -200,7 +359,7 @@ class _ClientCard extends ConsumerWidget {
             onPressed: () => Navigator.of(dialogContext).pop(true),
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.coralDeep,
-              minimumSize: const Size(96, 44),
+              minimumSize: const Size(96, 42),
             ),
             child: const Text('Delete'),
           ),
@@ -223,26 +382,45 @@ class _ClientCard extends ConsumerWidget {
     }
   }
 
-  void _showDetails(BuildContext context, UserProfile client) {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => _ClientDetailDialog(client: client),
-    );
+  Future<void> _setApproval(
+    BuildContext context,
+    WidgetRef ref,
+    bool approved,
+  ) async {
+    try {
+      await ref
+          .read(userRepositoryProvider)
+          .setApproval(row.client.email, approved);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            approved
+                ? '${row.client.fullName} approved'
+                : '${row.client.fullName} moved to pending',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppException.describe(error))),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final client = row.client;
     final (badgeColor, badgeWash) = switch (client.status) {
       AccountStatus.active => (AppColors.emeraldDeep, AppColors.emeraldWash),
-      AccountStatus.pendingApproval => (
-          const Color(0xFFB45309),
-          AppColors.amberWash,
-        ),
-      AccountStatus.unclaimed => (AppColors.slate, const Color(0xFFF1F5F9)),
+      AccountStatus.pendingApproval => (AppColors.amber, AppColors.amberWash),
+      AccountStatus.unclaimed => (AppColors.slate, AppColors.surfaceMuted),
     };
+    final summary = row.summary;
 
     return AppCard(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(15),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -250,23 +428,24 @@ class _ClientCard extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Container(
-                width: 42,
-                height: 42,
+                width: 40,
+                height: 40,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: AppColors.navy.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(13),
+                  color: AppColors.ink,
+                  borderRadius: BorderRadius.circular(9),
                 ),
                 child: Text(
                   client.initials,
                   style: const TextStyle(
-                    fontSize: 14,
+                    fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.navy,
+                    color: AppColors.goldSoft,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 11),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -274,7 +453,7 @@ class _ClientCard extends ConsumerWidget {
                     Text(
                       client.fullName,
                       style: const TextStyle(
-                        fontSize: 14,
+                        fontSize: 13.5,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -284,7 +463,7 @@ class _ClientCard extends ConsumerWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 11.5,
+                        fontSize: 11,
                         color: AppColors.slate,
                       ),
                     ),
@@ -299,15 +478,16 @@ class _ClientCard extends ConsumerWidget {
                     label: client.statusLabel,
                     color: badgeColor,
                     wash: badgeWash,
+                    dense: true,
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 5),
                   Text(
-                    client.pan,
+                    'PAN ${client.maskedPan}',
                     style: const TextStyle(
-                      fontSize: 10.5,
+                      fontSize: 9.5,
                       fontWeight: FontWeight.w600,
                       color: AppColors.slate,
-                      letterSpacing: 0.5,
+                      letterSpacing: 0.4,
                     ),
                   ),
                 ],
@@ -315,10 +495,50 @@ class _ClientCard extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 12),
-          _ClientPortfolio(pan: client.pan),
-          const SizedBox(height: 10),
-          const Divider(height: 1),
-          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceMuted,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: row.hasPortfolio
+                ? Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: _MiniStat(
+                          label: 'Current value',
+                          value: Formatters.currency(summary.currentValue),
+                        ),
+                      ),
+                      Expanded(
+                        child: _MiniStat(
+                          label: 'Invested',
+                          value: Formatters.currency(summary.totalInvested),
+                        ),
+                      ),
+                      Expanded(
+                        child: _MiniStat(
+                          label: 'Return',
+                          value:
+                              Formatters.signedPercent(summary.returnPercent),
+                          color: AppColors.forChange(summary.absolutePnl),
+                        ),
+                      ),
+                      Expanded(
+                        child: _MiniStat(
+                          label: 'Schemes',
+                          value: '${summary.holdings.length}',
+                        ),
+                      ),
+                    ],
+                  )
+                : const Text(
+                    'No CAMS transactions imported yet',
+                    style: TextStyle(fontSize: 11, color: AppColors.slate),
+                  ),
+          ),
+          const SizedBox(height: 8),
           Row(
             children: <Widget>[
               Expanded(
@@ -328,25 +548,39 @@ class _ClientCard extends ConsumerWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 10.5,
+                    fontSize: 10,
                     color: AppColors.slateLight,
                   ),
                 ),
               ),
+              if (client.status == AccountStatus.pendingApproval)
+                TextButton(
+                  onPressed: () => _setApproval(context, ref, true),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    minimumSize: const Size(0, 34),
+                    foregroundColor: AppColors.emeraldDeep,
+                    textStyle: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  child: const Text('Approve'),
+                ),
               TextButton.icon(
-                onPressed: () => _showDetails(context, client),
+                onPressed: onDetails,
                 style: TextButton.styleFrom(
                   visualDensity: VisualDensity.compact,
-                  minimumSize: const Size(0, 36),
+                  minimumSize: const Size(0, 34),
                 ),
                 icon: const Icon(Icons.visibility_outlined, size: 15),
-                label: const Text('Details'),
+                label: const Text('Dossier'),
               ),
               TextButton.icon(
                 onPressed: onEdit,
                 style: TextButton.styleFrom(
                   visualDensity: VisualDensity.compact,
-                  minimumSize: const Size(0, 36),
+                  minimumSize: const Size(0, 34),
                 ),
                 icon: const Icon(Icons.edit_outlined, size: 15),
                 label: const Text('Edit'),
@@ -369,92 +603,6 @@ class _ClientCard extends ConsumerWidget {
   }
 }
 
-class _ClientPortfolio extends ConsumerWidget {
-  const _ClientPortfolio({required this.pan});
-
-  final String pan;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final summaryAsync = ref.watch(clientPortfolioProvider(pan));
-
-    return switch (summaryAsync) {
-      AsyncData<PortfolioSummary>(:final value) when value.isEmpty => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          decoration: BoxDecoration(
-            color: AppColors.canvas,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Text(
-            'No CAMS transactions imported yet',
-            style: TextStyle(fontSize: 11, color: AppColors.slate),
-          ),
-        ),
-      AsyncData<PortfolioSummary>(:final value) => Row(
-          children: <Widget>[
-            Expanded(
-              child: _MiniStat(
-                label: 'Invested',
-                value: Formatters.currency(value.totalInvested),
-              ),
-            ),
-            Expanded(
-              child: _MiniStat(
-                label: 'Current',
-                value: Formatters.currency(value.currentValue),
-              ),
-            ),
-            Expanded(
-              child: _MiniStat(
-                label: 'P&L',
-                value: Formatters.signedPercent(value.returnPercent),
-                color: AppColors.forChange(value.absolutePnl),
-              ),
-            ),
-            Expanded(
-              child: _MiniStat(
-                label: 'Schemes',
-                value: '${value.holdings.length}',
-              ),
-            ),
-          ],
-        ),
-      AsyncError<PortfolioSummary>() => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          decoration: BoxDecoration(
-            color: AppColors.coralWash,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Text(
-            'Portfolio summary unavailable',
-            style: TextStyle(fontSize: 11, color: AppColors.coralDeep),
-          ),
-        ),
-      _ => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          decoration: BoxDecoration(
-            color: AppColors.canvas,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Row(
-            children: <Widget>[
-              SizedBox(
-                width: 12,
-                height: 12,
-                child: CircularProgressIndicator(strokeWidth: 1.8),
-              ),
-              SizedBox(width: 8),
-              Text(
-                'Valuing portfolio…',
-                style: TextStyle(fontSize: 11, color: AppColors.slate),
-              ),
-            ],
-          ),
-        ),
-    };
-  }
-}
-
 class _MiniStat extends StatelessWidget {
   const _MiniStat({required this.label, required this.value, this.color});
 
@@ -468,8 +616,13 @@ class _MiniStat extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Text(
-          label,
-          style: const TextStyle(fontSize: 9.5, color: AppColors.slateLight),
+          label.toUpperCase(),
+          style: const TextStyle(
+            fontSize: 8,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.7,
+            color: AppColors.slateLight,
+          ),
         ),
         const SizedBox(height: 2),
         FittedBox(
@@ -480,7 +633,8 @@ class _MiniStat extends StatelessWidget {
             style: TextStyle(
               fontSize: 11.5,
               fontWeight: FontWeight.w700,
-              color: color ?? AppColors.navy,
+              color: color ?? AppColors.ink,
+              fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
             ),
           ),
         ),
@@ -489,66 +643,132 @@ class _MiniStat extends StatelessWidget {
   }
 }
 
+class _ClientDossier extends StatelessWidget {
+  const _ClientDossier({required this.row});
 
-class _ClientDetailDialog extends ConsumerWidget {
-  const _ClientDetailDialog({required this.client});
-
-  final UserProfile client;
+  final AdminClientPortfolio row;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final summaryAsync = ref.watch(clientPortfolioProvider(client.pan));
+  Widget build(BuildContext context) {
+    final client = row.client;
+    final summary = row.summary;
+
     return AlertDialog(
-      title: Text(client.fullName),
+      title: Row(
+        children: <Widget>[
+          Expanded(child: Text(client.fullName)),
+          StatusBadge(
+            label: client.statusLabel,
+            color: client.status == AccountStatus.active
+                ? AppColors.emeraldDeep
+                : AppColors.amber,
+            wash: client.status == AccountStatus.active
+                ? AppColors.emeraldWash
+                : AppColors.amberWash,
+            dense: true,
+          ),
+        ],
+      ),
       content: SizedBox(
-        width: 420,
+        width: 460,
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              _DetailRow(label: 'Email', value: client.email),
-              _DetailRow(label: 'PAN', value: client.pan),
-              _DetailRow(label: 'Phone', value: client.phone.isEmpty ? '—' : client.phone),
-              _DetailRow(label: 'Client ID', value: client.clientId.isEmpty ? '—' : client.clientId),
-              _DetailRow(label: 'Status', value: client.statusLabel),
-              const SizedBox(height: 12),
-              const Text(
-                'Portfolio',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+              InfoRow(label: 'Email', value: client.email, labelWidth: 96),
+              const Divider(height: 1),
+              InfoRow(label: 'PAN', value: client.pan, labelWidth: 96, monospace: true),
+              const Divider(height: 1),
+              InfoRow(
+                label: 'Phone',
+                value: client.phone.isEmpty ? '—' : client.phone,
+                labelWidth: 96,
               ),
-              const SizedBox(height: 6),
-              switch (summaryAsync) {
-                AsyncData<PortfolioSummary>(:final value) when value.isEmpty =>
-                  const Text('No transactions imported yet.'),
-                AsyncData<PortfolioSummary>(:final value) => Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text('Invested: ${Formatters.currency(value.totalInvested)}'),
-                      Text('Current: ${Formatters.currency(value.currentValue)}'),
-                      Text('P&L: ${Formatters.currency(value.absolutePnl)} (${Formatters.signedPercent(value.returnPercent)})'),
-                      Text('Schemes: ${value.holdings.length}'),
-                      const SizedBox(height: 8),
-                      for (final holding in value.holdings)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
+              const Divider(height: 1),
+              InfoRow(
+                label: 'Client ID',
+                value: client.clientId.isEmpty ? '—' : client.clientId,
+                labelWidth: 96,
+                monospace: true,
+              ),
+              const Divider(height: 1),
+              InfoRow(
+                label: 'Linked on',
+                value: Formatters.date(client.linkedAt),
+                labelWidth: 96,
+              ),
+              const Divider(height: 1),
+              InfoRow(
+                label: 'Last login',
+                value: Formatters.timestamp(client.lastLoginAt),
+                labelWidth: 96,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'PORTFOLIO',
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1,
+                  color: AppColors.slate,
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (!row.hasPortfolio)
+                const Text(
+                  'No transactions imported for this PAN yet.',
+                  style: TextStyle(fontSize: 12),
+                )
+              else ...<Widget>[
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: _MiniStat(
+                        label: 'Current',
+                        value: Formatters.currency(summary.currentValue),
+                      ),
+                    ),
+                    Expanded(
+                      child: _MiniStat(
+                        label: 'Invested',
+                        value: Formatters.currency(summary.totalInvested),
+                      ),
+                    ),
+                    Expanded(
+                      child: _MiniStat(
+                        label: 'P&L',
+                        value: Formatters.signedPercent(summary.returnPercent),
+                        color: AppColors.forChange(summary.absolutePnl),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                for (final holding in summary.holdings)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 5),
+                    child: Row(
+                      children: <Widget>[
+                        Expanded(
                           child: Text(
-                            '• ${holding.schemeName} — ${Formatters.currency(holding.currentValue)}',
-                            style: const TextStyle(fontSize: 12),
+                            holding.schemeName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 11.5),
                           ),
                         ),
-                    ],
+                        Text(
+                          Formatters.currency(holding.currentValue),
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                AsyncError<PortfolioSummary>() =>
-                  const Text('Portfolio summary unavailable.'),
-                _ => const Row(
-                    children: <Widget>[
-                      SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
-                      SizedBox(width: 8),
-                      Text('Valuing portfolio…'),
-                    ],
-                  ),
-              },
+              ],
             ],
           ),
         ),
@@ -559,33 +779,6 @@ class _ClientDetailDialog extends ConsumerWidget {
           child: const Text('Close'),
         ),
       ],
-    );
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          SizedBox(
-            width: 90,
-            child: Text(
-              label,
-              style: const TextStyle(fontSize: 12, color: AppColors.slate, fontWeight: FontWeight.w600),
-            ),
-          ),
-          Expanded(child: Text(value, style: const TextStyle(fontSize: 12))),
-        ],
-      ),
     );
   }
 }

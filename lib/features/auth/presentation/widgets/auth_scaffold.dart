@@ -4,7 +4,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/risk_disclaimer.dart';
 
-/// Responsive auth layout: on wide screens a navy brand panel sits beside the
+/// Responsive auth layout: on wide screens an ink brand panel sits beside the
 /// form; on phones the form fills the screen with a compact brand header.
 class AuthScaffold extends StatelessWidget {
   const AuthScaffold({
@@ -23,6 +23,7 @@ class AuthScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.canvas,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -31,7 +32,7 @@ class AuthScaffold extends StatelessWidget {
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 430),
+                  constraints: const BoxConstraints(maxWidth: 400),
                   child: AutofillGroup(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -39,14 +40,16 @@ class AuthScaffold extends StatelessWidget {
                       children: <Widget>[
                         if (!isWide) ...<Widget>[
                           const _CompactBrand(),
-                          const SizedBox(height: 32),
-                        ],
+                          const SizedBox(height: 30),
+                        ] else
+                          const _FormEyebrow(),
                         Text(
                           title,
                           style: const TextStyle(
-                            fontSize: 26,
+                            fontSize: 27,
                             fontWeight: FontWeight.w700,
-                            letterSpacing: -0.6,
+                            letterSpacing: -0.9,
+                            height: 1.2,
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -54,11 +57,11 @@ class AuthScaffold extends StatelessWidget {
                           subtitle,
                           style: const TextStyle(
                             color: AppColors.slate,
-                            fontSize: 13.5,
-                            height: 1.45,
+                            fontSize: 13,
+                            height: 1.55,
                           ),
                         ),
-                        const SizedBox(height: 28),
+                        const SizedBox(height: 26),
                         child,
                         if (footer != null) ...<Widget>[
                           const SizedBox(height: 20),
@@ -78,12 +81,80 @@ class AuthScaffold extends StatelessWidget {
             return Row(
               children: <Widget>[
                 const Expanded(flex: 5, child: _BrandPanel()),
-                Expanded(flex: 6, child: form),
+                Expanded(
+                  flex: 6,
+                  child: Container(
+                    color: AppColors.canvas,
+                    child: form,
+                  ),
+                ),
               ],
             );
           },
         ),
       ),
+    );
+  }
+}
+
+class _BrandMark extends StatelessWidget {
+  const _BrandMark({this.size = 34});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppColors.gold,
+        borderRadius: BorderRadius.circular(size * 0.2),
+      ),
+      child: Text(
+        'F',
+        style: TextStyle(
+          color: AppColors.inkDeep,
+          fontSize: size * 0.5,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
+}
+
+class _Wordmark extends StatelessWidget {
+  const _Wordmark({required this.compact});
+
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          AppConstants.appName,
+          style: TextStyle(
+            fontSize: compact ? 15 : 15,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 2.2,
+            color: compact ? AppColors.ink : Colors.white,
+          ),
+        ),
+        const SizedBox(height: 1),
+        const Text(
+          'WEALTH MANAGEMENT',
+          style: TextStyle(
+            fontSize: 7.5,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.5,
+            color: AppColors.goldSoft,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -95,26 +166,59 @@ class _CompactBrand extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: <Widget>[
-        Image.asset(
-          'assets/logo.png',
-          width: 36,
-          height: 36,
-        ),
-        const SizedBox(width: 12),
-        const Column(
+        const _BrandMark(),
+        const SizedBox(width: 11),
+        Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
+          children: const <Widget>[
             Text(
               AppConstants.appName,
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 2.2,
+                color: AppColors.ink,
+              ),
             ),
+            SizedBox(height: 1),
             Text(
-              'Powered by Compounding',
-              style: TextStyle(fontSize: 11.5, color: AppColors.slate),
+              'WEALTH MANAGEMENT',
+              style: TextStyle(
+                fontSize: 7.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.5,
+                color: AppColors.goldDeep,
+              ),
             ),
           ],
         ),
       ],
+    );
+  }
+}
+
+class _FormEyebrow extends StatelessWidget {
+  const _FormEyebrow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Row(
+        children: <Widget>[
+          Container(width: 22, height: 2, color: AppColors.gold),
+          const SizedBox(width: 8),
+          const Text(
+            'SECURE INVESTOR ACCESS',
+            style: TextStyle(
+              fontSize: 8.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.4,
+              color: AppColors.slate,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -129,80 +233,73 @@ class _BrandPanel extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: <Color>[AppColors.navyDeep, AppColors.navy, AppColors.navySoft],
+          colors: <Color>[AppColors.inkDeep, AppColors.ink, AppColors.inkSoft],
         ),
       ),
-      padding: const EdgeInsets.all(56),
+      padding: const EdgeInsets.all(52),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
           Row(
             children: <Widget>[
-              Image.asset(
-                'assets/logo.png',
-                width: 36,
-                height: 36,
-              ),
+              const _BrandMark(size: 36),
               const SizedBox(width: 12),
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    AppConstants.appName,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                  Text(
-                    'Powered by Compounding',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 11.5,
-                    ),
-                  ),
-                ],
-              ),
+              const _Wordmark(compact: false),
             ],
           ),
-          const SizedBox(height: 44),
+          const SizedBox(height: 40),
+          Container(width: 44, height: 2, color: AppColors.gold),
+          const SizedBox(height: 22),
           const Text(
-            'Your mutual fund\nportfolio, reconciled.',
+            'Wealth,\nclearly measured.',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 34,
-              height: 1.2,
+              fontSize: 36,
+              height: 1.15,
               fontWeight: FontWeight.w700,
-              letterSpacing: -1,
+              letterSpacing: -1.2,
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
           Text(
-            'Fundmf reads your CAMS statements, tracks every folio and values '
-            'your holdings against the latest AMFI NAV.',
+            'Fundmf consolidates every folio from your CAMS and KFintech '
+            'statements and values it against the latest AMFI NAV — one '
+            'statement, one number, no spreadsheets.',
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.72),
-              fontSize: 14,
-              height: 1.6,
+              color: Colors.white.withValues(alpha: 0.66),
+              fontSize: 13.5,
+              height: 1.65,
             ),
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 38),
           const _Feature(
-            icon: Icons.verified_user_outlined,
-            text: 'Admin-verified access — no public sign-ups',
+            icon: Icons.shield_outlined,
+            text: 'Invite-only access, verified by the Fundmf admin',
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
           const _Feature(
             icon: Icons.mark_email_read_outlined,
-            text: 'CAMS statements parsed automatically every day at 9 AM',
+            text: 'Statements parsed automatically every morning',
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
           const _Feature(
-            icon: Icons.show_chart_rounded,
-            text: 'Live NAV, absolute P&L and scheme-wise returns',
+            icon: Icons.picture_as_pdf_outlined,
+            text: 'Portfolio statements and ledgers as PDF or CSV',
+          ),
+          const SizedBox(height: 40),
+          Container(
+            height: 1,
+            color: Colors.white.withValues(alpha: 0.09),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Prepared for ${AppConstants.supportEmail}',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.35),
+              fontSize: 10.5,
+              letterSpacing: 0.4,
+            ),
           ),
         ],
       ),
@@ -221,15 +318,15 @@ class _Feature extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Icon(icon, color: AppColors.emerald, size: 18),
+        Icon(icon, color: AppColors.goldSoft, size: 17),
         const SizedBox(width: 12),
         Expanded(
           child: Text(
             text,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.88),
-              fontSize: 13,
-              height: 1.45,
+              color: Colors.white.withValues(alpha: 0.82),
+              fontSize: 12.5,
+              height: 1.5,
             ),
           ),
         ),

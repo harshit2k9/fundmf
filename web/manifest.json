@@ -1,11 +1,11 @@
 {
-    "name": "fundmf",
-    "short_name": "fundmf",
+    "name": "Fundmf Wealth Management",
+    "short_name": "Fundmf",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "Fundmf - Mutual fund portfolio tracking",
+    "background_color": "#0A1421",
+    "theme_color": "#101C2E",
+    "description": "Fundmf wealth management - mutual fund portfolio statements, valuation and reporting.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

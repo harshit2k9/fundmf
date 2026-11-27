@@ -5,6 +5,7 @@ import '../../transactions/data/transaction_repository.dart';
 import '../../transactions/domain/transaction_model.dart';
 import '../data/nav_repository.dart';
 import '../data/portfolio_repository.dart';
+import '../domain/portfolio_analytics.dart';
 import '../domain/portfolio_calculator.dart';
 import '../domain/portfolio_summary.dart';
 
@@ -41,6 +42,15 @@ final portfolioSummaryProvider = FutureProvider<PortfolioSummary>((ref) async {
   final transactions = await ref.watch(transactionFeedProvider.future);
   if (transactions.isEmpty) return PortfolioSummary.empty;
   return ref.watch(portfolioRepositoryProvider).fromTransactions(transactions);
+});
+
+/// Ledger-derived activity (monthly flows, best/worst scheme, SIP count)
+/// shown on the Overview and Portfolio screens.
+final portfolioAnalyticsProvider = FutureProvider<PortfolioAnalytics>((ref) async {
+  final transactions = await ref.watch(transactionFeedProvider.future);
+  if (transactions.isEmpty) return PortfolioAnalytics.empty;
+  final summary = await ref.watch(portfolioSummaryProvider.future);
+  return PortfolioAnalytics.from(transactions: transactions, summary: summary);
 });
 
 /// Admin directory summary for a client's PAN (works without their session).

@@ -12,9 +12,9 @@ class SplashScreen extends StatelessWidget {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: <Color>[AppColors.navyDeep, AppColors.navy],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: <Color>[AppColors.inkDeep, AppColors.ink, AppColors.inkSoft],
           ),
         ),
         child: Center(
@@ -22,42 +22,52 @@ class SplashScreen extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               Container(
-                padding: const EdgeInsets.all(18),
+                width: 54,
+                height: 54,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(22),
+                  color: AppColors.gold,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
-                  Icons.account_balance_wallet_rounded,
-                  color: Colors.white,
-                  size: 34,
+                child: const Text(
+                  'F',
+                  style: TextStyle(
+                    color: AppColors.inkDeep,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 18),
               const Text(
                 AppConstants.appName,
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 24,
+                  fontSize: 19,
                   fontWeight: FontWeight.w700,
-                  letterSpacing: -0.4,
+                  letterSpacing: 4,
                 ),
               ),
-              const SizedBox(height: 6),
-              Text(
-                AppConstants.tagline,
+              const SizedBox(height: 4),
+              const Text(
+                'WEALTH MANAGEMENT',
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.6),
-                  fontSize: 12.5,
+                  color: AppColors.goldSoft,
+                  fontSize: 8,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 2,
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 30),
+              Container(width: 44, height: 1.5, color: AppColors.gold),
+              const SizedBox(height: 22),
               SizedBox(
-                width: 22,
-                height: 22,
+                width: 16,
+                height: 16,
                 child: CircularProgressIndicator(
-                  strokeWidth: 2.2,
-                  color: Colors.white.withValues(alpha: 0.8),
+                  strokeWidth: 1.8,
+                  color: Colors.white.withValues(alpha: 0.6),
                 ),
               ),
             ],

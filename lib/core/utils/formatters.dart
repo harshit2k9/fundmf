@@ -20,6 +20,7 @@ abstract final class Formatters {
   static final DateFormat _date = DateFormat('dd MMM yyyy');
   static final DateFormat _shortDate = DateFormat('dd MMM');
   static final DateFormat _stamp = DateFormat('dd MMM yyyy, hh:mm a');
+  static final DateFormat _monthYear = DateFormat('MMMM yyyy');
   static final DateFormat _isoDate = DateFormat('dd/MM/yyyy');
 
   /// `₹1,23,456.78`
@@ -65,6 +66,10 @@ abstract final class Formatters {
 
   static String timestamp(DateTime? value) =>
       value == null ? '—' : _stamp.format(value);
+
+  /// `November 2026` — used for the ledger's month separators.
+  static String monthYear(DateTime? value) =>
+      value == null ? '—' : _monthYear.format(value);
 
   static String isoDate(DateTime? value) =>
       value == null ? '—' : _isoDate.format(value);

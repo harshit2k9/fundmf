@@ -101,6 +101,15 @@ class UserRepository {
 
   Future<void> deleteProfile(String email) => docFor(email).delete();
 
+  /// Admin approval switch. A pending client becomes active immediately and
+  /// the session stream re-routes them into the app.
+  Future<void> setApproval(String email, bool approved) async {
+    await docFor(email).update(<String, dynamic>{
+      'isApproved': approved,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   static String generateClientId() {
     final now = DateTime.now();
     final code = now.millisecondsSinceEpoch.toRadixString(36).toUpperCase();

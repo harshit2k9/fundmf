@@ -19,31 +19,48 @@ class EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
+      padding: const EdgeInsets.symmetric(vertical: 34, horizontal: 20),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           Container(
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              color: AppColors.canvas,
+            width: 52,
+            height: 52,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceMuted,
               shape: BoxShape.circle,
+              border: Border.all(color: AppColors.border),
             ),
-            child: Icon(icon, size: 26, color: AppColors.slate),
+            child: Icon(icon, size: 22, color: AppColors.slate),
           ),
           const SizedBox(height: 14),
           Text(
             title,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              letterSpacing: -0.1,
+            ),
           ),
           const SizedBox(height: 6),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.slate, fontSize: 13, height: 1.4),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.slate,
+                fontSize: 12.5,
+                height: 1.5,
+              ),
+            ),
           ),
-          if (action != null) ...<Widget>[const SizedBox(height: 16), action!],
+          if (action != null) ...<Widget>[
+            const SizedBox(height: 16),
+            action!,
+          ],
         ],
       ),
     );

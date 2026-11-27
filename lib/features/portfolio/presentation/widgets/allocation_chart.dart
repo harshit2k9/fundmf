@@ -29,9 +29,8 @@ class _AllocationChartCardState extends State<AllocationChartCard> {
   Widget build(BuildContext context) {
     final holdings = widget.holdings;
     final total = holdings.fold<double>(0, (sum, h) => sum + h.currentValue);
-    final dimensions = MediaQuery.sizeOf(context).width;
-    final chartSize = dimensions < 380 ? 190.0 : 210.0;
-    // A refresh can shrink the holdings list; never index past the end.
+    final width = MediaQuery.sizeOf(context).width;
+    final chartSize = width < 380 ? 176.0 : 196.0;
     final selectedIndex =
         (_selectedIndex >= 0 && _selectedIndex < holdings.length)
             ? _selectedIndex
@@ -41,17 +40,30 @@ class _AllocationChartCardState extends State<AllocationChartCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const SectionHeader(
+          SectionHeader(
+            eyebrow: 'Composition',
             title: 'Portfolio allocation',
             subtitle: 'Share of current value',
+            trailing: holdings.isEmpty
+                ? null
+                : Text(
+                    Formatters.currency(total),
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      fontFeatures: <FontFeature>[
+                        FontFeature.tabularFigures(),
+                      ],
+                    ),
+                  ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
           if (holdings.isEmpty)
             const EmptyState(
               icon: Icons.donut_large_rounded,
               title: 'No allocation yet',
               message:
-                  'Your CAMS statements will populate this chart as soon as '
+                  'Your CAMS statements populate this chart as soon as '
                   'transactions are synced.',
             )
           else ...<Widget>[
@@ -64,8 +76,8 @@ class _AllocationChartCardState extends State<AllocationChartCard> {
                   children: <Widget>[
                     PieChart(
                       PieChartData(
-                        centerSpaceRadius: chartSize * 0.3,
-                        sectionsSpace: 3,
+                        centerSpaceRadius: chartSize * 0.31,
+                        sectionsSpace: 2,
                         startDegreeOffset: -90,
                         pieTouchData: PieTouchData(
                           touchCallback: (event, response) {
@@ -88,13 +100,13 @@ class _AllocationChartCardState extends State<AllocationChartCard> {
                                   ? 0.0001
                                   : holdings[i].currentValue,
                               color: _colorAt(i),
-                              radius: selectedIndex == i ? 24 : 18,
+                              radius: selectedIndex == i ? 22 : 17,
                               showTitle: holdings.length <= 6,
                               title:
                                   '${holdings[i].allocationPercent.toStringAsFixed(0)}%',
                               titleStyle: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 10,
+                                fontSize: 9.5,
                                 fontWeight: FontWeight.w700,
                               ),
                               borderSide: BorderSide.none,
@@ -108,18 +120,20 @@ class _AllocationChartCardState extends State<AllocationChartCard> {
                         Text(
                           selectedIndex >= 0
                               ? Formatters.compactCurrency(
-                                  holdings[selectedIndex].currentValue,
-                                )
+                                  holdings[selectedIndex].currentValue)
                               : Formatters.compactCurrency(total),
                           style: const TextStyle(
-                            fontSize: 18,
+                            fontSize: 17,
                             fontWeight: FontWeight.w700,
-                            letterSpacing: -0.4,
+                            letterSpacing: -0.5,
+                            fontFeatures: <FontFeature>[
+                              FontFeature.tabularFigures(),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 3),
                         SizedBox(
-                          width: chartSize * 0.52,
+                          width: chartSize * 0.54,
                           child: Text(
                             selectedIndex >= 0
                                 ? holdings[selectedIndex].shortName
@@ -128,7 +142,7 @@ class _AllocationChartCardState extends State<AllocationChartCard> {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontSize: 10.5,
+                              fontSize: 10,
                               color: AppColors.slate,
                               height: 1.3,
                             ),
@@ -140,41 +154,41 @@ class _AllocationChartCardState extends State<AllocationChartCard> {
                 ),
               ),
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 18),
             ...List<Widget>.generate(holdings.length, (index) {
               final holding = holdings[index];
               final selected = selectedIndex == index;
               return Material(
-                color: selected ? AppColors.canvas : Colors.transparent,
-                borderRadius: BorderRadius.circular(10),
+                color: selected ? AppColors.surfaceMuted : Colors.transparent,
+                borderRadius: BorderRadius.circular(6),
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(6),
                   onTap: () => setState(
                     () => _selectedIndex = selected ? -1 : index,
                   ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 8,
+                      horizontal: 7,
+                      vertical: 7,
                     ),
                     child: Row(
                       children: <Widget>[
                         Container(
-                          width: 9,
-                          height: 9,
+                          width: 8,
+                          height: 8,
                           decoration: BoxDecoration(
                             color: _colorAt(index),
-                            shape: BoxShape.circle,
+                            borderRadius: BorderRadius.circular(2),
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 9),
                         Expanded(
                           child: Text(
                             holding.shortName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontSize: 12,
+                              fontSize: 11.5,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -183,8 +197,11 @@ class _AllocationChartCardState extends State<AllocationChartCard> {
                         Text(
                           Formatters.percent(holding.allocationPercent),
                           style: const TextStyle(
-                            fontSize: 12,
+                            fontSize: 11.5,
                             fontWeight: FontWeight.w700,
+                            fontFeatures: <FontFeature>[
+                              FontFeature.tabularFigures(),
+                            ],
                           ),
                         ),
                       ],

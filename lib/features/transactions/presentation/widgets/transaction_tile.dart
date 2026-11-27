@@ -4,7 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../domain/transaction_model.dart';
 
-/// One row in the transactions report.
+/// One row in the CAMS ledger.
 class TransactionTile extends StatelessWidget {
   const TransactionTile({
     super.key,
@@ -22,36 +22,35 @@ class TransactionTile extends StatelessWidget {
 
     return Material(
       color: AppColors.surface,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(10),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Ink(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(color: AppColors.border),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
               Container(
-                width: 36,
-                height: 36,
+                width: 32,
+                height: 32,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: AppColors.washForChange(inflow ? 1 : -1),
-                  borderRadius: BorderRadius.circular(11),
+                  borderRadius: BorderRadius.circular(7),
                 ),
                 child: Icon(
                   inflow
                       ? Icons.south_west_rounded
                       : Icons.north_east_rounded,
-                  size: 17,
+                  size: 15,
                   color: accent,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 11),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -61,20 +60,20 @@ class TransactionTile extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 12.5,
+                        fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        height: 1.3,
+                        height: 1.35,
                       ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       '${Formatters.date(transaction.transactionDate)}'
                       '  ·  ${transaction.kind.displayName}'
-                      '  ·  ${transaction.folioNumber}',
+                      '  ·  ${transaction.folioNumber.isEmpty ? '—' : transaction.folioNumber}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 10.5,
+                        fontSize: 10,
                         color: AppColors.slate,
                       ),
                     ),
@@ -88,7 +87,7 @@ class TransactionTile extends StatelessWidget {
                   Text(
                     Formatters.currency(transaction.amount),
                     style: const TextStyle(
-                      fontSize: 12.5,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
                     ),
@@ -97,7 +96,7 @@ class TransactionTile extends StatelessWidget {
                   Text(
                     '${inflow ? '+' : '−'}${transaction.units.toStringAsFixed(3)} u',
                     style: TextStyle(
-                      fontSize: 10.5,
+                      fontSize: 10,
                       fontWeight: FontWeight.w600,
                       color: accent,
                     ),

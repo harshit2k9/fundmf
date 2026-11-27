@@ -59,14 +59,35 @@ class _AdminSyncScreenState extends ConsumerState<AdminSyncScreen> {
     final logsAsync = ref.watch(adminSyncLogsProvider);
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 40),
       children: <Widget>[
         Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 860),
+            constraints: const BoxConstraints(maxWidth: 900),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
+                const Text(
+                  'Statement pipeline',
+                  style: TextStyle(
+                    fontSize: 21,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.6,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'CAMS and KFintech emails are read from Gmail, parsed and '
+                  'matched to client PANs. The scheduled job runs every day at '
+                  '9:00 AM IST; a manual run is safe to repeat — duplicate rows '
+                  'are skipped.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.slate,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 16),
                 AppCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -74,15 +95,17 @@ class _AdminSyncScreenState extends ConsumerState<AdminSyncScreen> {
                       Row(
                         children: <Widget>[
                           Container(
-                            padding: const EdgeInsets.all(10),
+                            width: 40,
+                            height: 40,
+                            alignment: Alignment.center,
                             decoration: BoxDecoration(
-                              color: AppColors.navy.withValues(alpha: 0.06),
-                              borderRadius: BorderRadius.circular(12),
+                              color: AppColors.ink,
+                              borderRadius: BorderRadius.circular(9),
                             ),
                             child: const Icon(
                               Icons.cloud_download_outlined,
-                              size: 20,
-                              color: AppColors.navy,
+                              size: 19,
+                              color: AppColors.goldSoft,
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -93,15 +116,16 @@ class _AdminSyncScreenState extends ConsumerState<AdminSyncScreen> {
                                 Text(
                                   'CAMS & KFintech statement sync',
                                   style: TextStyle(
-                                    fontSize: 15,
+                                    fontSize: 14,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
                                 SizedBox(height: 2),
                                 Text(
-                                  'CAMS + KFintech · scheduled daily at 9:00 AM · Asia/Kolkata',
+                                  'Daily at 9:00 AM  ·  Asia/Kolkata  ·  '
+                                  'idempotent writes',
                                   style: TextStyle(
-                                    fontSize: 11.5,
+                                    fontSize: 11,
                                     color: AppColors.slate,
                                   ),
                                 ),
@@ -114,8 +138,9 @@ class _AdminSyncScreenState extends ConsumerState<AdminSyncScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: AppColors.canvas,
-                          borderRadius: BorderRadius.circular(12),
+                          color: AppColors.surfaceMuted,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.border),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -123,40 +148,40 @@ class _AdminSyncScreenState extends ConsumerState<AdminSyncScreen> {
                             const Text(
                               'GMAIL QUERY',
                               style: TextStyle(
-                                fontSize: 9.5,
-                                letterSpacing: 0.8,
+                                fontSize: 8.5,
+                                letterSpacing: 1,
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.slate,
                               ),
                             ),
-                            const SizedBox(height: 5),
+                            const SizedBox(height: 6),
                             SelectableText(
                               'CAMS: from:${AppConstants.camsSender} has:attachment '
                               '(filename:zip OR filename:csv) is:unread\n'
                               'KFintech: from:${AppConstants.kfintechSender} is:unread',
                               style: const TextStyle(
-                                fontSize: 11.5,
-                                height: 1.45,
+                                fontSize: 11,
+                                height: 1.5,
                                 fontFamily: 'monospace',
-                                color: AppColors.navy,
+                                color: AppColors.ink,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
                       FilledButton.icon(
                         onPressed: _running ? null : _runSync,
                         icon: _running
                             ? const SizedBox(
-                                width: 16,
-                                height: 16,
+                                width: 15,
+                                height: 15,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                   color: Colors.white,
                                 ),
                               )
-                            : const Icon(Icons.sync_rounded, size: 18),
+                            : const Icon(Icons.sync_rounded, size: 17),
                         label: Text(
                           _running ? 'Scanning inbox…' : 'Run manual sync now',
                         ),
@@ -167,14 +192,15 @@ class _AdminSyncScreenState extends ConsumerState<AdminSyncScreen> {
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             color: AppColors.coralWash,
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.coralWash),
                           ),
                           child: Text(
                             _error!,
                             style: const TextStyle(
-                              fontSize: 12,
+                              fontSize: 11.5,
                               color: AppColors.coralDeep,
-                              height: 1.45,
+                              height: 1.5,
                             ),
                           ),
                         ),
@@ -187,32 +213,36 @@ class _AdminSyncScreenState extends ConsumerState<AdminSyncScreen> {
                   ),
                 ),
                 const SizedBox(height: 18),
-                const SectionHeader(
-                  title: 'Sync log',
-                  subtitle: 'Most recent 25 runs, newest first',
-                ),
-                const SizedBox(height: 12),
                 AsyncValueView<List<SyncLogEntry>>(
                   asyncValue: logsAsync,
                   onRetry: () => ref.invalidate(adminSyncLogsProvider),
                   builder: (logs) {
-                    if (logs.isEmpty) {
-                      return const AppCard(
-                        child: EmptyState(
-                          icon: Icons.history_rounded,
-                          title: 'No sync runs yet',
-                          message:
-                              'Run a manual sync or wait for the scheduled job '
-                              'to write its first log entry.',
-                        ),
-                      );
-                    }
                     return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: <Widget>[
-                        for (final log in logs) ...<Widget>[
-                          _LogTile(entry: log),
-                          const SizedBox(height: 8),
-                        ],
+                        SectionHeader(
+                          eyebrow: 'Audit',
+                          title: 'Run history',
+                          subtitle: logs.isEmpty
+                              ? 'No runs recorded yet'
+                              : 'Last ${logs.length} run${logs.length == 1 ? '' : 's'}, newest first',
+                        ),
+                        const SizedBox(height: 10),
+                        if (logs.isEmpty)
+                          const AppCard(
+                            child: EmptyState(
+                              icon: Icons.history_rounded,
+                              title: 'No sync runs yet',
+                              message:
+                                  'Run a manual sync or wait for the scheduled '
+                                  'job to write its first log entry.',
+                            ),
+                          )
+                        else
+                          for (final log in logs) ...<Widget>[
+                            _LogTile(entry: log),
+                            const SizedBox(height: 8),
+                          ],
                       ],
                     );
                   },
@@ -238,7 +268,7 @@ class _ResultSummary extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: ok ? AppColors.emeraldWash : AppColors.amberWash,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -246,35 +276,37 @@ class _ResultSummary extends StatelessWidget {
           Row(
             children: <Widget>[
               Icon(
-                ok ? Icons.check_circle_outline_rounded : Icons.warning_amber_rounded,
-                size: 16,
-                color: ok ? AppColors.emeraldDeep : const Color(0xFFB45309),
+                ok
+                    ? Icons.check_circle_outline_rounded
+                    : Icons.warning_amber_rounded,
+                size: 15,
+                color: ok ? AppColors.emeraldDeep : AppColors.amber,
               ),
               const SizedBox(width: 6),
               Text(
                 'Sync ${result.status}',
                 style: TextStyle(
-                  fontSize: 12.5,
+                  fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color: ok ? AppColors.emeraldDeep : const Color(0xFFB45309),
+                  color: ok ? AppColors.emeraldDeep : AppColors.amber,
                 ),
               ),
               const Spacer(),
               Text(
                 '${(result.durationMs / 1000).toStringAsFixed(1)}s',
-                style: const TextStyle(fontSize: 11, color: AppColors.slate),
+                style: const TextStyle(fontSize: 10.5, color: AppColors.slate),
               ),
             ],
           ),
           const SizedBox(height: 10),
           Wrap(
-            spacing: 18,
+            spacing: 16,
             runSpacing: 8,
             children: <Widget>[
-              _Count(label: 'Emails scanned', value: result.messagesScanned),
+              _Count(label: 'Emails', value: result.messagesScanned),
               _Count(label: 'Attachments', value: result.attachmentsParsed),
-              _Count(label: 'Folios mapped', value: result.foliosMapped),
-              _Count(label: 'Unmapped rows', value: result.unmappedRows),
+              _Count(label: 'Folios', value: result.foliosMapped),
+              _Count(label: 'Unmapped', value: result.unmappedRows),
               _Count(label: 'New rows', value: result.transactionsCreated),
               _Count(label: 'Duplicates', value: result.duplicatesSkipped),
             ],
@@ -320,6 +352,7 @@ class _Count extends StatelessWidget {
           style: const TextStyle(
             fontSize: 11.5,
             fontWeight: FontWeight.w700,
+            fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
           ),
         ),
       ],
@@ -346,15 +379,16 @@ class _LogTile extends StatelessWidget {
           Row(
             children: <Widget>[
               StatusBadge(
-                label: entry.status.isEmpty ? 'unknown' : entry.status,
+                label: entry.status.isEmpty ? 'UNKNOWN' : entry.status.toUpperCase(),
                 color: color,
                 wash: wash,
+                dense: true,
               ),
               const SizedBox(width: 8),
               Text(
                 entry.trigger.isEmpty ? 'sync' : entry.trigger,
                 style: const TextStyle(
-                  fontSize: 10.5,
+                  fontSize: 10,
                   fontWeight: FontWeight.w600,
                   color: AppColors.slate,
                 ),
@@ -363,7 +397,7 @@ class _LogTile extends StatelessWidget {
               Text(
                 Formatters.timestamp(entry.startedAt),
                 style: const TextStyle(
-                  fontSize: 10.5,
+                  fontSize: 10,
                   color: AppColors.slateLight,
                 ),
               ),
@@ -371,11 +405,11 @@ class _LogTile extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            '${entry.messagesScanned} emails · ${entry.foliosMapped} folios · '
-            '${entry.transactionsCreated} new · '
+            '${entry.messagesScanned} emails  ·  ${entry.foliosMapped} folios  ·  '
+            '${entry.transactionsCreated} new  ·  '
             '${entry.duplicatesSkipped} duplicates'
-            '${entry.durationMs > 0 ? ' · ${(entry.durationMs / 1000).toStringAsFixed(1)}s' : ''}',
-            style: const TextStyle(fontSize: 11.5, color: AppColors.slate),
+            '${entry.durationMs > 0 ? '  ·  ${(entry.durationMs / 1000).toStringAsFixed(1)}s' : ''}',
+            style: const TextStyle(fontSize: 11, color: AppColors.slate),
           ),
           if (entry.errorMessage.isNotEmpty) ...<Widget>[
             const SizedBox(height: 6),

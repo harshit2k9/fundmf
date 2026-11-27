@@ -32,6 +32,9 @@ dependencies:
   path_provider: ^2.1.6
   url_launcher: ^6.3.3
 
+  # Browser APIs for the Flutter web build (used to download PDF/CSV reports).
+  web: ^1.1.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

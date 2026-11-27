@@ -64,7 +64,7 @@ class PendingApprovalScreen extends ConsumerWidget {
                 padding: const EdgeInsets.all(28),
                 decoration: BoxDecoration(
                   color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(18),
                   border: Border.all(color: AppColors.border),
                 ),
                 child: Column(
@@ -74,15 +74,20 @@ class PendingApprovalScreen extends ConsumerWidget {
                     Row(
                       children: <Widget>[
                         Container(
-                          padding: const EdgeInsets.all(10),
+                          width: 32,
+                          height: 32,
+                          alignment: Alignment.center,
                           decoration: BoxDecoration(
-                            color: AppColors.navy,
-                            borderRadius: BorderRadius.circular(12),
+                            color: AppColors.ink,
+                            borderRadius: BorderRadius.circular(7),
                           ),
-                          child: const Icon(
-                            Icons.account_balance_wallet_rounded,
-                            color: Colors.white,
-                            size: 18,
+                          child: const Text(
+                            'F',
+                            style: TextStyle(
+                              color: AppColors.goldSoft,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -106,7 +111,7 @@ class PendingApprovalScreen extends ConsumerWidget {
                           child: const Text(
                             'PENDING',
                             style: TextStyle(
-                              color: Color(0xFFB45309),
+                              color: AppColors.amber,
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.6,
@@ -148,10 +153,11 @@ class PendingApprovalScreen extends ConsumerWidget {
                     const SizedBox(height: 24),
                     Container(
                       padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.canvas,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
+                                              decoration: BoxDecoration(
+                          color: AppColors.surfaceMuted,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.border),
+                        ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
