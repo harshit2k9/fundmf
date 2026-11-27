@@ -21,22 +21,14 @@ class SplashScreen extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Container(
-                width: 54,
-                height: 54,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppColors.gold,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text(
-                  'F',
-                  style: TextStyle(
-                    color: AppColors.inkDeep,
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.5,
-                  ),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(13),
+                child: Image.asset(
+                  'assets/logo.png',
+                  width: 58,
+                  height: 58,
+                  fit: BoxFit.cover,
+                  filterQuality: FilterQuality.medium,
                 ),
               ),
               const SizedBox(height: 18),
@@ -51,12 +43,12 @@ class SplashScreen extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               const Text(
-                'WEALTH MANAGEMENT',
+                'POWERED BY COMPOUNDING',
                 style: TextStyle(
                   color: AppColors.goldSoft,
                   fontSize: 8,
                   fontWeight: FontWeight.w700,
-                  letterSpacing: 2,
+                  letterSpacing: 1.6,
                 ),
               ),
               const SizedBox(height: 30),

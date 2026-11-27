@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/risk_disclaimer.dart';
 import '../../auth/presentation/session_providers.dart';
@@ -63,14 +64,16 @@ class _AdminShellState extends ConsumerState<AdminShell> {
     final wide = width >= 900;
     final pending = ref.watch(adminPendingClientsProvider).length;
 
+    void refresh() {
+      ref.invalidate(adminClientsProvider);
+      ref.invalidate(adminClientPortfoliosProvider);
+      ref.invalidate(adminSyncLogsProvider);
+    }
+
     final actions = <Widget>[
       IconButton(
         tooltip: 'Refresh directory',
-        onPressed: () {
-          ref.invalidate(adminClientsProvider);
-          ref.invalidate(adminClientPortfoliosProvider);
-          ref.invalidate(adminSyncLogsProvider);
-        },
+        onPressed: refresh,
         icon: const Icon(Icons.refresh_rounded, size: 20),
       ),
       PopupMenuButton<String>(
@@ -137,56 +140,22 @@ class _AdminShellState extends ConsumerState<AdminShell> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        titleSpacing: 16,
-        title: Row(
-          children: <Widget>[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-              decoration: BoxDecoration(
-                color: AppColors.ink,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Text(
-                'ADMIN',
-                style: TextStyle(
-                  color: AppColors.goldSoft,
-                  fontSize: 8.5,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.8,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              _items[_index].label,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.2,
-              ),
-            ),
-          ],
-        ),
-        actions: actions,
-      ),
+      backgroundColor: AppColors.canvas,
       body: Column(
         children: <Widget>[
+          _AdminMobileHeader(
+            pending: pending,
+            onRefresh: refresh,
+            onSignOut: () => ref.read(authRepositoryProvider).signOut(),
+          ),
+          _AdminTabStrip(
+            items: _items,
+            index: _index,
+            pending: pending,
+            onSelect: _goTo,
+          ),
           Expanded(child: IndexedStack(index: _index, children: _pages)),
           const _AdminFooter(),
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: _goTo,
-        destinations: <NavigationDestination>[
-          for (final item in _items)
-            NavigationDestination(
-              icon: Icon(item.icon),
-              selectedIcon: Icon(item.selectedIcon),
-              label: item.label,
-              tooltip: item.label,
-            ),
         ],
       ),
     );
@@ -245,21 +214,14 @@ class _AdminSidePanel extends StatelessWidget {
                     ? MainAxisAlignment.start
                     : MainAxisAlignment.center,
                 children: <Widget>[
-                  Container(
-                    width: 32,
-                    height: 32,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: AppColors.gold,
-                      borderRadius: BorderRadius.circular(7),
-                    ),
-                    child: const Text(
-                      'F',
-                      style: TextStyle(
-                        color: AppColors.inkDeep,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(7),
+                    child: Image.asset(
+                      'assets/logo.png',
+                      width: 32,
+                      height: 32,
+                      fit: BoxFit.cover,
+                      filterQuality: FilterQuality.medium,
                     ),
                   ),
                   if (extended) ...<Widget>[
@@ -539,6 +501,231 @@ class _AdminFooter extends StatelessWidget {
         border: Border(top: BorderSide(color: AppColors.border)),
       ),
       child: const RiskDisclaimer(),
+    );
+  }
+}
+
+/// Ink brand bar used on phones and narrow tablets.
+class _AdminMobileHeader extends StatelessWidget {
+  const _AdminMobileHeader({
+    required this.pending,
+    required this.onRefresh,
+    required this.onSignOut,
+  });
+
+  final int pending;
+  final VoidCallback onRefresh;
+  final VoidCallback onSignOut;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.ink,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 9, 6, 11),
+          child: Row(
+            children: <Widget>[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(7),
+                child: Image.asset(
+                  'assets/logo.png',
+                  width: 30,
+                  height: 30,
+                  fit: BoxFit.cover,
+                  filterQuality: FilterQuality.medium,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const <Widget>[
+                    Text(
+                      AppConstants.appName,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.8,
+                      ),
+                    ),
+                    SizedBox(height: 1),
+                    Text(
+                      'ADMIN CONSOLE',
+                      style: TextStyle(
+                        color: AppColors.goldSoft,
+                        fontSize: 7,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (pending > 0)
+                Container(
+                  margin: const EdgeInsets.only(right: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.gold,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '$pending pending',
+                    style: const TextStyle(
+                      color: AppColors.inkDeep,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ),
+              IconButton(
+                tooltip: 'Refresh directory',
+                onPressed: onRefresh,
+                icon: Icon(
+                  Icons.refresh_rounded,
+                  size: 19,
+                  color: Colors.white.withValues(alpha: 0.75),
+                ),
+              ),
+              PopupMenuButton<String>(
+                tooltip: 'Admin menu',
+                offset: const Offset(0, 40),
+                onSelected: (value) {
+                  if (value == 'signout') onSignOut();
+                },
+                itemBuilder: (context) => const <PopupMenuEntry<String>>[
+                  PopupMenuItem<String>(value: 'signout', child: Text('Sign out')),
+                ],
+                child: CircleAvatar(
+                  radius: 15,
+                  backgroundColor: AppColors.gold,
+                  child: const Text(
+                    'A',
+                    style: TextStyle(
+                      color: AppColors.inkDeep,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Horizontal section switcher shown under the mobile brand bar.
+class _AdminTabStrip extends StatelessWidget {
+  const _AdminTabStrip({
+    required this.items,
+    required this.index,
+    required this.pending,
+    required this.onSelect,
+  });
+
+  final List<_AdminNav> items;
+  final int index;
+  final int pending;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(bottom: BorderSide(color: AppColors.border)),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
+        child: Row(
+          children: <Widget>[
+            for (var i = 0; i < items.length; i++) ...<Widget>[
+              if (i > 0) const SizedBox(width: 7),
+              _AdminTabChip(
+                item: items[i],
+                selected: index == i,
+                badge: i == 1 && pending > 0,
+                onTap: () => onSelect(i),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminTabChip extends StatelessWidget {
+  const _AdminTabChip({
+    required this.item,
+    required this.selected,
+    required this.badge,
+    required this.onTap,
+  });
+
+  final _AdminNav item;
+  final bool selected;
+  final bool badge;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? AppColors.ink : AppColors.surfaceMuted,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: selected ? AppColors.ink : AppColors.border,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(
+                selected ? item.selectedIcon : item.icon,
+                size: 15,
+                color: selected ? AppColors.goldSoft : AppColors.slate,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                item.label,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: selected ? Colors.white : AppColors.ink,
+                ),
+              ),
+              if (badge) ...<Widget>[
+                const SizedBox(width: 5),
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    color: AppColors.gold,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

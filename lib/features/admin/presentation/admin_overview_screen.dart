@@ -162,49 +162,72 @@ class _AdminHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
+    final heading = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              const Text(
-                'Book of business',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.6,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                Formatters.date(DateTime.now()),
-                style: const TextStyle(fontSize: 12, color: AppColors.slate),
-              ),
-            ],
+        const Text(
+          'Book of business',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.6,
           ),
         ),
-        OutlinedButton.icon(
-          onPressed: onSync,
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size(0, 42),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-          ),
-          icon: const Icon(Icons.sync_rounded, size: 16),
-          label: const Text('Sync'),
-        ),
-        const SizedBox(width: 8),
-        FilledButton.icon(
-          onPressed: onNewClient,
-          style: FilledButton.styleFrom(
-            minimumSize: const Size(0, 42),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-          ),
-          icon: const Icon(Icons.person_add_alt_1_rounded, size: 17),
-          label: const Text('New client'),
+        const SizedBox(height: 4),
+        Text(
+          Formatters.date(DateTime.now()),
+          style: const TextStyle(fontSize: 12, color: AppColors.slate),
         ),
       ],
+    );
+
+    final syncButton = OutlinedButton.icon(
+      onPressed: onSync,
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 42),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+      ),
+      icon: const Icon(Icons.sync_rounded, size: 16),
+      label: const Text('Sync'),
+    );
+    final newClientButton = FilledButton.icon(
+      onPressed: onNewClient,
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(0, 42),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+      ),
+      icon: const Icon(Icons.person_add_alt_1_rounded, size: 17),
+      label: const Text('New client'),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 520) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              heading,
+              const SizedBox(height: 12),
+              Row(
+                children: <Widget>[
+                  Expanded(child: syncButton),
+                  const SizedBox(width: 8),
+                  Expanded(child: newClientButton),
+                ],
+              ),
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: <Widget>[
+            Expanded(child: heading),
+            syncButton,
+            const SizedBox(width: 8),
+            newClientButton,
+          ],
+        );
+      },
     );
   }
 }
@@ -255,7 +278,7 @@ class _KpiGrid extends StatelessWidget {
       builder: (context, constraints) {
         final columns = constraints.maxWidth >= 1000
             ? 4
-            : (constraints.maxWidth >= 560 ? 2 : 1);
+            : (constraints.maxWidth >= 340 ? 2 : 1);
         const gap = 10.0;
         final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
         return Wrap(

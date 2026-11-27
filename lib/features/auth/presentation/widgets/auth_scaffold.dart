@@ -104,22 +104,14 @@ class _BrandMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: AppColors.gold,
-        borderRadius: BorderRadius.circular(size * 0.2),
-      ),
-      child: Text(
-        'F',
-        style: TextStyle(
-          color: AppColors.inkDeep,
-          fontSize: size * 0.5,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.5,
-        ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(size * 0.22),
+      child: Image.asset(
+        'assets/logo.png',
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        filterQuality: FilterQuality.medium,
       ),
     );
   }
@@ -146,11 +138,11 @@ class _Wordmark extends StatelessWidget {
         ),
         const SizedBox(height: 1),
         const Text(
-          'WEALTH MANAGEMENT',
+          'POWERED BY COMPOUNDING',
           style: TextStyle(
             fontSize: 7.5,
             fontWeight: FontWeight.w700,
-            letterSpacing: 1.5,
+            letterSpacing: 1.2,
             color: AppColors.goldSoft,
           ),
         ),
@@ -182,11 +174,11 @@ class _CompactBrand extends StatelessWidget {
             ),
             SizedBox(height: 1),
             Text(
-              'WEALTH MANAGEMENT',
+              'POWERED BY COMPOUNDING',
               style: TextStyle(
                 fontSize: 7.5,
                 fontWeight: FontWeight.w700,
-                letterSpacing: 1.5,
+                letterSpacing: 1.2,
                 color: AppColors.goldDeep,
               ),
             ),

@@ -19,6 +19,8 @@ enum _ClientFilter { all, active, pending, unclaimed }
 
 enum _ClientSort { name, aum, returns }
 
+enum _ClientAction { dossier, edit, delete }
+
 /// Searchable directory of every provisioned client, with status filters,
 /// live AUM and one-tap approval.
 class AdminClientsScreen extends ConsumerStatefulWidget {
@@ -503,99 +505,169 @@ class _ClientCard extends ConsumerWidget {
               border: Border.all(color: AppColors.border),
             ),
             child: row.hasPortfolio
-                ? Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: _MiniStat(
+                ? LayoutBuilder(
+                    builder: (context, constraints) {
+                      final columns = constraints.maxWidth >= 360 ? 4 : 2;
+                      const gap = 10.0;
+                      final width =
+                          (constraints.maxWidth - gap * (columns - 1)) /
+                              columns;
+                      final stats = <Widget>[
+                        _MiniStat(
                           label: 'Current value',
                           value: Formatters.currency(summary.currentValue),
                         ),
-                      ),
-                      Expanded(
-                        child: _MiniStat(
+                        _MiniStat(
                           label: 'Invested',
                           value: Formatters.currency(summary.totalInvested),
                         ),
-                      ),
-                      Expanded(
-                        child: _MiniStat(
+                        _MiniStat(
                           label: 'Return',
                           value:
                               Formatters.signedPercent(summary.returnPercent),
                           color: AppColors.forChange(summary.absolutePnl),
                         ),
-                      ),
-                      Expanded(
-                        child: _MiniStat(
+                        _MiniStat(
                           label: 'Schemes',
                           value: '${summary.holdings.length}',
                         ),
-                      ),
-                    ],
+                      ];
+                      return Wrap(
+                        spacing: gap,
+                        runSpacing: 8,
+                        children: <Widget>[
+                          for (final stat in stats)
+                            SizedBox(width: width, child: stat),
+                        ],
+                      );
+                    },
                   )
                 : const Text(
                     'No CAMS transactions imported yet',
                     style: TextStyle(fontSize: 11, color: AppColors.slate),
                   ),
           ),
-          const SizedBox(height: 8),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  'Client ${client.clientId.isEmpty ? '—' : client.clientId}'
-                  '  ·  ${client.phone.isEmpty ? 'No phone' : client.phone}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: AppColors.slateLight,
-                  ),
-                ),
-              ),
-              if (client.status == AccountStatus.pendingApproval)
-                TextButton(
-                  onPressed: () => _setApproval(context, ref, true),
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    minimumSize: const Size(0, 34),
-                    foregroundColor: AppColors.emeraldDeep,
-                    textStyle: const TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
+          const SizedBox(height: 6),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 470;
+              return Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      'Client ${client.clientId.isEmpty ? '—' : client.clientId}'
+                      '  ·  ${client.phone.isEmpty ? 'No phone' : client.phone}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: AppColors.slateLight,
+                      ),
                     ),
                   ),
-                  child: const Text('Approve'),
-                ),
-              TextButton.icon(
-                onPressed: onDetails,
-                style: TextButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  minimumSize: const Size(0, 34),
-                ),
-                icon: const Icon(Icons.visibility_outlined, size: 15),
-                label: const Text('Dossier'),
-              ),
-              TextButton.icon(
-                onPressed: onEdit,
-                style: TextButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  minimumSize: const Size(0, 34),
-                ),
-                icon: const Icon(Icons.edit_outlined, size: 15),
-                label: const Text('Edit'),
-              ),
-              IconButton(
-                tooltip: 'Delete client',
-                visualDensity: VisualDensity.compact,
-                onPressed: () => _delete(context, ref),
-                icon: const Icon(
-                  Icons.delete_outline_rounded,
-                  size: 17,
-                  color: AppColors.coralDeep,
-                ),
-              ),
-            ],
+                  if (client.status == AccountStatus.pendingApproval)
+                    TextButton(
+                      onPressed: () => _setApproval(context, ref, true),
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        minimumSize: const Size(0, 34),
+                        foregroundColor: AppColors.emeraldDeep,
+                        textStyle: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      child: const Text('Approve'),
+                    ),
+                  if (compact)
+                    PopupMenuButton<_ClientAction>(
+                      tooltip: 'Client actions',
+                      icon: const Icon(Icons.more_horiz_rounded, size: 20),
+                      onSelected: (action) {
+                        switch (action) {
+                          case _ClientAction.dossier:
+                            onDetails();
+                          case _ClientAction.edit:
+                            onEdit();
+                          case _ClientAction.delete:
+                            _delete(context, ref);
+                        }
+                      },
+                      itemBuilder: (context) =>
+                          const <PopupMenuEntry<_ClientAction>>[
+                        PopupMenuItem<_ClientAction>(
+                          value: _ClientAction.dossier,
+                          child: Row(
+                            children: <Widget>[
+                              Icon(Icons.visibility_outlined, size: 17),
+                              SizedBox(width: 10),
+                              Text('View dossier'),
+                            ],
+                          ),
+                        ),
+                        PopupMenuItem<_ClientAction>(
+                          value: _ClientAction.edit,
+                          child: Row(
+                            children: <Widget>[
+                              Icon(Icons.edit_outlined, size: 17),
+                              SizedBox(width: 10),
+                              Text('Edit client'),
+                            ],
+                          ),
+                        ),
+                        PopupMenuDivider(),
+                        PopupMenuItem<_ClientAction>(
+                          value: _ClientAction.delete,
+                          child: Row(
+                            children: <Widget>[
+                              Icon(
+                                Icons.delete_outline_rounded,
+                                size: 17,
+                                color: AppColors.coralDeep,
+                              ),
+                              SizedBox(width: 10),
+                              Text(
+                                'Delete',
+                                style: TextStyle(color: AppColors.coralDeep),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    )
+                  else ...<Widget>[
+                    TextButton.icon(
+                      onPressed: onDetails,
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        minimumSize: const Size(0, 34),
+                      ),
+                      icon: const Icon(Icons.visibility_outlined, size: 15),
+                      label: const Text('Dossier'),
+                    ),
+                    TextButton.icon(
+                      onPressed: onEdit,
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        minimumSize: const Size(0, 34),
+                      ),
+                      icon: const Icon(Icons.edit_outlined, size: 15),
+                      label: const Text('Edit'),
+                    ),
+                    IconButton(
+                      tooltip: 'Delete client',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => _delete(context, ref),
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
+                        size: 17,
+                        color: AppColors.coralDeep,
+                      ),
+                    ),
+                  ],
+                ],
+              );
+            },
           ),
         ],
       ),

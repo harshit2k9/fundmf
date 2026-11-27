@@ -43,7 +43,7 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
         SnackBar(
           content: Text(
             result.delivered
-                ? '$label is ready — choose where to save it.'
+                ? '$label saved.'
                 : (result.message ?? '$label was saved to app storage.'),
           ),
           backgroundColor: result.delivered ? AppColors.ink : AppColors.amber,

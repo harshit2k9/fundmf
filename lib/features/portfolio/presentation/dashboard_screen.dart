@@ -8,7 +8,6 @@ import '../../../core/widgets/async_value_view.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/stat_tile.dart';
-import '../../../core/widgets/status_badge.dart';
 import '../../auth/presentation/session_providers.dart';
 import '../../transactions/domain/transaction_model.dart';
 import '../../transactions/presentation/widgets/transaction_tile.dart';

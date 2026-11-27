@@ -38,7 +38,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
       final result = await task();
       if (!mounted) return;
       final message = result.delivered
-          ? '$label is ready — choose where to save it.'
+          ? '$label saved.'
           : (result.message ?? '$label was saved to app storage.');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -94,7 +94,8 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                 const Text(
                   'Generate the same verified figures you see in the app as a '
                   'PDF statement or a spreadsheet. Exports download on web and '
-                  'open the share sheet on mobile.',
+                  'open your device\u2019s save dialog on mobile, so you choose '
+                  'the folder.',
                   style: TextStyle(
                     fontSize: 12,
                     color: AppColors.slate,
